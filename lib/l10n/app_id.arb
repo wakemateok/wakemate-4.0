@@ -1,0 +1,18 @@
+{
+  "@@locale": "id",
+  "languageSettingsTitle": "Pengaturan Bahasa",
+  "selectYourLanguage": "Pilih Bahasa Anda",
+  "caffeineIntake": "Asupan Kafein",
+  "sleepDuration": "Durasi Tidur",
+  "addRecord": "Tambah Catatan",
+  "caffeineIntakeToday": "Asupan Kafein Hari Ini",
+  "sleepDurationToday": "Durasi Tidur Hari Ini",
+  "unitMg": " mg",
+  "unitHours": " jam",
+  "wakeTime": "Waktu Bangun",
+  "sleepTime": "Waktu Tidur",
+  "caffeineLog": "Catatan Kafein",
+  "inputHistory": "Riwayat Input",
+  "calculateRecommendation": "Hitung Rekomendasi",
+  "recommendationHistory": "Riwayat Rekomendasi"
+}

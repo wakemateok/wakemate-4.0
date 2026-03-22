@@ -1,0 +1,124 @@
+import 'package:flutter/material.dart';
+import 'home_page.dart'; // 確保 import 正確
+
+class CaffeineHistoryPage extends StatelessWidget {
+  final List<dynamic> recommendationData;
+  final String userId;
+
+  const CaffeineHistoryPage({
+    super.key,
+    this.recommendationData = const [],
+    required this.userId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    bool hasHistory = recommendationData.isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("咖啡因建議結果"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => HomePage(userId: userId)),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+      body:
+          hasHistory
+              ? ListView.builder(
+                padding: const EdgeInsets.all(16.0),
+                itemCount: recommendationData.length,
+                itemBuilder: (context, index) {
+                  final item = recommendationData[index];
+                  final recommendedTime = item['recommended_time'] ?? 'N/A';
+                  final recommendedIntake =
+                      item['recommended_intake_mg'] ?? 'N/A';
+
+                  return Card(
+                    elevation: 4.0,
+                    margin: const EdgeInsets.only(bottom: 16.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "咖啡因建議",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                color: Colors.blueAccent,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                "建議攝取時間：$recommendedTime",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.local_cafe, color: Colors.brown),
+                              const SizedBox(width: 8),
+                              Text(
+                                "建議攝取量：$recommendedIntake 毫克",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              )
+              : const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.coffee_outlined, size: 60, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "目前沒有歷史紀錄。",
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        "完成一次咖啡因建議後，您的結果會顯示在這裡。",
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+    );
+  }
+}

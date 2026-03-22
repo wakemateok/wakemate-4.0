@@ -1,0 +1,161 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'home_page.dart';
+
+//覆寫了父類別的方法，並創建了與 LoginPage 相關聯的狀態類別 _LoginPageState
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+//開頭的底線 _ 在 Dart 語言中代表這個類別是私有的 (private)
+//extends 代表這個類別繼承自另一個類別
+//State<LoginPage> 是 Flutter 提供的一個泛型類別 (generic class)
+//它告訴編譯器，_LoginPageState 這個狀態類別是專門為 LoginPage 這個 StatefulWidget 服務的
+class _LoginPageState extends State<LoginPage> {
+  //final 代表這個變數只能被賦值一次
+  final emailInput = TextEditingController();
+  final passwordInput = TextEditingController();
+  final nameInput = TextEditingController();
+
+  final String baseUrl = 'https://wakemate-api-4-0.onrender.com';
+  bool isLoading = false;
+
+  //註冊使用者，非同步函數宣告。
+  //Future<void>
+  //代表一個尚未完成的操作。它表示這個函數不會立即返回結果，而是會在未來某個時間點完成並返回
+  //<void>：這是一個泛型，它告訴我們當這個 Future 完成時，它不會返回任何有用的值
+  Future<void> _registerUser() async {
+    //.text:取得文字輸入框中的內容，以字串的形式回傳
+    //.trim():移除字串開頭和結尾的所有空白字元，例如空格、換行符號或 Tab 鍵。
+    final email = emailInput.text.trim();
+    final password = passwordInput.text.trim();
+    final name = nameInput.text.trim();
+
+    if (email.isEmpty || password.isEmpty || name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            "請輸入 Email、密碼與名字",
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color.fromARGB(255, 239, 100, 91), // 改變背景色
+          behavior: SnackBarBehavior.floating, // 懸浮顯示
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10), //圓角
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        ),
+      );
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      //Content-Type 這是一個標準的 HTTP 標頭，用來告訴伺服器你正在發送什麼類型的資料
+      //application/json: 這個值表示你發送的資料是 JSON 格式。
+      final headers = {'Content-Type': 'application/json'};
+      final body = jsonEncode({
+        "email": email,
+        "password": password,
+        "name": name,
+        "created_at": DateTime.now().toIso8601String(),
+      });
+
+      final res = await http.post(
+        //將字串轉換成 Uri 物件，這是 http.post 函數所需要的格式。
+        Uri.parse('$baseUrl/users/'),
+        headers: headers,
+        body: body,
+      );
+
+      //除錯(可刪除)
+      print('🔹 Response body: ${res.body}'); // Console Debug
+
+      //檢查 StatefulWidget 是否仍在畫面上
+      if (!mounted) return;
+
+      //除錯(可刪除)
+      showDialog(
+        context: context,
+        builder:
+            (_) => AlertDialog(
+              title: const Text("伺服器回應"),
+              content: Text(res.body),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+      );
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+
+        //按照優先順序尋找使用者 ID
+        final String? uuidFromServer =
+            data['user_id']?.toString() ?? data['id']?.toString();
+
+        if (uuidFromServer != null && uuidFromServer.isNotEmpty) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => HomePage(userId: uuidFromServer, email: email),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ 儲存失敗：${res.statusCode} ${res.body}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("錯誤：$e")));
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("註冊使用者")),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(
+              controller: nameInput,
+              decoration: const InputDecoration(labelText: "名稱"),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailInput,
+              decoration: const InputDecoration(labelText: "Email"),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: passwordInput,
+              decoration: const InputDecoration(labelText: "密碼"),
+              obscureText: true,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: isLoading ? null : _registerUser,
+              child: Text(isLoading ? "處理中..." : "儲存使用者資料"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

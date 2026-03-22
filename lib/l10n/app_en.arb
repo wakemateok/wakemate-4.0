@@ -1,0 +1,18 @@
+{
+  "@@locale": "en",
+  "languageSettingsTitle": "Language Settings",
+  "selectYourLanguage": "Select Your Language",
+  "caffeineIntake": "Caffeine Intake",
+  "sleepDuration": "Sleep Duration",
+  "addRecord": "Add Record",
+  "caffeineIntakeToday": "Today's Caffeine Intake",
+  "sleepDurationToday": "Today's Sleep Duration",
+  "unitMg": " mg",
+  "unitHours": " hours",
+  "wakeTime": "Wake Time",
+  "sleepTime": "Sleep Time",
+  "caffeineLog": "Caffeine Log",
+  "inputHistory": "Input History",
+  "calculateRecommendation": "Calculate",
+  "recommendationHistory": "History"
+}

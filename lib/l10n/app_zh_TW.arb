@@ -1,0 +1,18 @@
+{
+  "@@locale": "zh_TW",
+  "languageSettingsTitle": "語言設定",
+  "selectYourLanguage": "選擇您的偏好語言",
+  "caffeineIntake": "咖啡因攝取量",
+  "sleepDuration": "睡眠時數",
+  "addRecord": "新增紀錄",
+  "caffeineIntakeToday": "今日咖啡因攝取量",
+  "sleepDurationToday": "今日睡眠時數",
+  "unitMg": " 毫克",
+  "unitHours": " 小時",
+  "wakeTime": "清醒時段",
+  "sleepTime": "睡眠時段",
+  "caffeineLog": "咖啡因紀錄",
+  "inputHistory": "輸入歷史",
+  "calculateRecommendation": "計算推薦",
+  "recommendationHistory": "推薦結果"
+}

@@ -1,0 +1,64 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'home_page.dart'; // 確保 import 正確
+
+class CaffeineHistoryPage extends StatelessWidget {
+  final List<dynamic> recommendationData;
+  final String userId; // 需要傳回 HomePage
+
+  const CaffeineHistoryPage({
+    super.key,
+    this.recommendationData = const [],
+    required this.userId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 檢查是否有歷史紀錄
+    bool hasHistory = recommendationData.isNotEmpty;
+
+    // 格式化 JSON 字串，僅在有資料時進行
+    final formattedJson =
+        hasHistory
+            ? const JsonEncoder.withIndent('  ').convert(recommendationData)
+            : null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("咖啡因建議結果"),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            // 回到 HomePage，清掉中間頁面
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => HomePage(userId: userId)),
+              (route) => false,
+            );
+          },
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          // ✅ 新增 Center 元件
+          child:
+              hasHistory
+                  ? SelectableText(
+                    formattedJson!,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                    ),
+                  )
+                  : const Text(
+                    // ✅ 新增沒有紀錄時的提示
+                    "目前沒有歷史紀錄。",
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+        ),
+      ),
+    );
+  }
+}

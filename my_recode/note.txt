@@ -1,0 +1,18 @@
+Dart 命名規範
+1.變數的第一個字元不能是數字
+2.變數名稱以底線 _ 開頭，表示該變數在 lib 中是私有的，通常用於封裝內部狀態，只可用於此dart檔案
+3.通常首單字字母小寫，後續自單字首字母大寫 EX: firstPage
+4.var 自動推斷資料類型類別 EX:var age = 30;  Dart 自動推斷為 int
+
+StatefulWidget：這是一種特殊的 Flutter 元件，它的狀態（State）是可以改變的。例如，當使用者在輸入框中輸入文字，或者登入狀態改變時，頁面需要能夠重新繪製來反映這些變化。
+StatelessWidget：態是不可變的，一旦建立就不會改變，常用於靜態頁面。
+@override State<LoginPage> createState() => _LoginPageState();：
+這行程式碼是 StatefulWidget 的核心。它覆寫了父類別的方法，並創建了與 LoginPage 相關聯的狀態類別 _LoginPageState。
+
+extends：代表這個類別繼承自另一個類別
+final：代表這個變數只能被賦值一次
+
+.text:取得文字輸入框中的內容，以字串的形式回傳
+.trim():移除字串開頭和結尾的所有空白字元，例如空格、換行符號或 Tab 鍵
+
+

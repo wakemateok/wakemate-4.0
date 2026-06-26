@@ -19,7 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final passwordController = TextEditingController();
 
   // API 的基本網址
-  final String baseUrl = 'https://wakemate-api-4-0.onrender.com';
+  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
 
   // 一個布林值，用來追蹤非同步操作是否正在進行
   bool isLoading = false;

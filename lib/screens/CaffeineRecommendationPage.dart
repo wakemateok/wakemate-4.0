@@ -124,7 +124,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
       // ✅ 只保留「取得推薦」的部分
       final recommendationUrl =
-          "https://wakemate-api-4-0.onrender.com/recommendations/?user_id=$userId";
+          "https://wakemate-api-4-0-qtgs.onrender.com/recommendations/?user_id=$userId";
       final recommendationResponse = await http
           .get(Uri.parse(recommendationUrl))
           .timeout(timeout);

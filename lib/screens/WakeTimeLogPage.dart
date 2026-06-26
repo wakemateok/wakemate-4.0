@@ -52,7 +52,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
   final Color _bgLight = const Color(0xFFF9F9F7); // 米白
 
   // API Base URL
-  final String baseUrl = 'https://wakemate-api-4-0.onrender.com';
+  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
 
   // 管理所有時間段的列表
   final List<TimeSlot> _timeSlots = [];

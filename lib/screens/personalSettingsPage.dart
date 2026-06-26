@@ -19,7 +19,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _bmiController = TextEditingController();
 
   bool _isLoading = false;
-  final String baseUrl = 'https://wakemate-api-4-0.onrender.com';
+  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
   String? _existingRecordId;
 
   // 定義顏色和樣式

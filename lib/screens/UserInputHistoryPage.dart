@@ -42,7 +42,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
   final Color _cardColor = Colors.white;
   final Color _textColor = const Color(0xFF424242);
   final String baseUrl =
-      'https://wakemate-api-4-0.onrender.com'; // API Base URL
+      'https://wakemate-api-4-0-qtgs.onrender.com'; // API Base URL
 
   late Future<UserDayData> _userDataFuture;
 

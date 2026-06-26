@@ -107,7 +107,7 @@ class _CaffeineRecommendationPageState
         "sleep_start_time": _formatDate(_sleepStart),
         "sleep_end_time": _formatDate(_sleepEnd),
       };
-      const sleepUrl = "https://wakemate-api-4-0.onrender.com/users_sleep/";
+      const sleepUrl = "https://wakemate-api-4-0-qtgs.onrender.com/users_sleep/";
       final sleepResponse = await http
           .post(
             Uri.parse(sleepUrl),
@@ -130,7 +130,7 @@ class _CaffeineRecommendationPageState
         "target_start_time": _formatDate(_targetStart),
         "target_end_time": _formatDate(_targetEnd),
       };
-      const wakeUrl = "https://wakemate-api-4-0.onrender.com/users_wake/";
+      const wakeUrl = "https://wakemate-api-4-0-qtgs.onrender.com/users_wake/";
       final wakeResponse = await http
           .post(
             Uri.parse(wakeUrl),
@@ -154,7 +154,7 @@ class _CaffeineRecommendationPageState
         "caffeine_amount": int.parse(_caffeineAmountController.text), // 修正鍵名
         "taking_timestamp": _formatDate(_caffeineIntakeTime), // 修正鍵名
       };
-      const intakeUrl = "https://wakemate-api-4-0.onrender.com/users_intake/";
+      const intakeUrl = "https://wakemate-api-4-0-qtgs.onrender.com/users_intake/";
       final intakeResponse = await http
           .post(
             Uri.parse(intakeUrl),
@@ -173,7 +173,7 @@ class _CaffeineRecommendationPageState
 
       // 4. 觸發後端計算並獲取建議 (使用 GET 請求)
       final recommendationUrl =
-          "https://wakemate-api-4-0.onrender.com/recommendations/?user_id=$userId";
+          "https://wakemate-api-4-0-qtgs.onrender.com/recommendations/?user_id=$userId";
       final recommendationResponse = await http
           .get(Uri.parse(recommendationUrl))
           .timeout(const Duration(seconds: 15));

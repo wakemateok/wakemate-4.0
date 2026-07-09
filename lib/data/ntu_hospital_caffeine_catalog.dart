@@ -33,20 +33,20 @@ class CaffeineCatalogItem {
   }
 }
 
-const String _ntuhLifeServiceUrl =
-    'https://www.ntuh.gov.tw/ntuh/Fpage.action?fid=3078';
 const String _cityCafeSourceUrl =
     'https://www.citycafe.com.tw/file/ingredient.pdf';
 const String _familyCoffeeSourceUrl =
     'https://nevent.family.com.tw/2018_letscafe/0610%E6%AA%94-%E5%92%96%E5%95%A1%E7%8F%BE%E5%A0%B4%E8%AA%BF%E8%A3%BD%E9%A3%B2%E6%96%99%E6%A8%99%E7%A4%BA%E6%89%8B%E5%86%8A.pdf';
 const String _starbucksSourceUrl =
-    'https://www.starbucks.com.tw/products/calories/calories.jspx';
+    'https://www.starbucks.com.tw/products/calories/calories_drinks.jspx';
 
 const String _cityCafeLocation = '台大醫院東址 1F 統一便利商店、捷運台大醫院站 7-ELEVEN';
 const String _familyLocation = '台大醫院 B1 全家台大醫院店、周邊全家門市';
+const String _starbucksLocation = '星巴克台醫 B1 門市、台大醫院周邊門市';
+const String _starbucksSourceName = '星巴克台灣飲料營養標示表 2026/07/01';
 
 const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
-  // CITY CAFE official ingredient table, version shown in source PDF: 2026/06/24.
+  // CITY CAFE official ingredient table, version shown in source PDF: 2026/07/08.
   CaffeineCatalogItem(
     id: 'city_americano_hot_m',
     brand: 'CITY CAFE',
@@ -55,7 +55,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 245,
     caffeineLabel: '245.0 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -66,7 +66,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 240,
     caffeineLabel: '240.2 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -77,7 +77,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 317,
     caffeineLabel: '317.4 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -88,7 +88,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 345,
     caffeineLabel: '345.3 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -99,7 +99,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 466,
     caffeineLabel: '466.3 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -110,7 +110,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 492,
     caffeineLabel: '492.0 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -121,7 +121,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 172,
     caffeineLabel: '172.2 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -132,7 +132,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 189,
     caffeineLabel: '188.5 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -143,7 +143,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 226,
     caffeineLabel: '226.2 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -154,7 +154,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 242,
     caffeineLabel: '241.8 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -165,7 +165,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 316,
     caffeineLabel: '316.2 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -176,7 +176,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 286,
     caffeineLabel: '286.0 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -187,7 +187,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 401,
     caffeineLabel: '401.4 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -198,7 +198,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 390,
     caffeineLabel: '389.8 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -209,7 +209,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 319,
     caffeineLabel: '319.0 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
   CaffeineCatalogItem(
@@ -220,7 +220,7 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     caffeineMg: 325,
     caffeineLabel: '324.6 mg',
     locationHint: _cityCafeLocation,
-    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/06/24',
+    sourceName: 'CITY CAFE 官方咖啡因與熱量糖量表 2026/07/08',
     sourceUrl: _cityCafeSourceUrl,
   ),
 
@@ -413,70 +413,161 @@ const List<CaffeineCatalogItem> ntuHospitalCaffeineCatalog = [
     sourceUrl: _familyCoffeeSourceUrl,
   ),
 
-  // Items below are left as estimates until exact Taiwan menu or package labels are verified.
+  // Starbucks Taiwan official beverage nutrition table, 2026/07/01.
+  // Barista Coffee is omitted because its official chart only publishes
+  // caffeine ranges, while recommendation calculations require an exact mg.
   CaffeineCatalogItem(
-    id: 'starbucks_americano_tall',
+    id: 'starbucks_americano_hot_tall',
     brand: 'Starbucks',
     productName: '美式咖啡',
-    sizeLabel: 'Tall',
-    caffeineMg: 150,
-    caffeineLabel: '待官方品項校正，暫用 150 mg',
-    locationHint: '星巴克台醫 B1 門市、台大醫院周邊門市',
-    sourceName: '星巴克台灣營養標示表',
+    sizeLabel: '熱 中杯 (Tall)',
+    caffeineMg: 195,
+    caffeineLabel: '195 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
     sourceUrl: _starbucksSourceUrl,
-    isEstimate: true,
-    note: '星巴克台灣營養表為圖片式頁面；需人工對照台灣門市品項後改為精確值。',
   ),
   CaffeineCatalogItem(
-    id: 'starbucks_latte_grande',
+    id: 'starbucks_latte_hot_grande',
     brand: 'Starbucks',
     productName: '那堤',
-    sizeLabel: 'Grande',
-    caffeineMg: 150,
-    caffeineLabel: '待官方品項校正，暫用 150 mg',
-    locationHint: '星巴克台醫 B1 門市、台大醫院周邊門市',
-    sourceName: '星巴克台灣營養標示表',
+    sizeLabel: '熱 大杯 (Grande)',
+    caffeineMg: 182,
+    caffeineLabel: '182 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
     sourceUrl: _starbucksSourceUrl,
-    isEstimate: true,
-    note: '星巴克台灣營養表為圖片式頁面；需人工對照台灣門市品項後改為精確值。',
   ),
   CaffeineCatalogItem(
-    id: 'barista_americano_m',
-    brand: '西雅圖咖啡',
+    id: 'starbucks_americano_hot_short',
+    brand: 'Starbucks',
     productName: '美式咖啡',
-    sizeLabel: '中杯',
-    caffeineMg: 150,
-    caffeineLabel: '待現場標示校正，暫用 150 mg',
-    locationHint: '台大醫院東址 1F 西雅圖咖啡',
-    sourceName: '台大醫院商場資訊 / 現場紅黃綠標示',
-    sourceUrl: _ntuhLifeServiceUrl,
-    isEstimate: true,
-    note: '目前缺官方公開 mg 表，請以台大醫院現場標示更新。',
+    sizeLabel: '熱 小杯 (Short)',
+    caffeineMg: 98,
+    caffeineLabel: '98 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
   ),
   CaffeineCatalogItem(
-    id: 'red_bull_250',
-    brand: '便利商店瓶罐',
-    productName: 'Red Bull 能量飲料',
-    sizeLabel: '250 ml',
-    caffeineMg: 80,
-    caffeineLabel: '待瓶身校正，暫用 80 mg',
-    locationHint: '台大醫院院內與周邊便利商店',
-    sourceName: '包裝標示',
-    sourceUrl: _ntuhLifeServiceUrl,
-    isEstimate: true,
-    note: '請以實際瓶身標示或品牌官網校正。',
+    id: 'starbucks_americano_hot_grande',
+    brand: 'Starbucks',
+    productName: '美式咖啡',
+    sizeLabel: '熱 大杯 (Grande)',
+    caffeineMg: 293,
+    caffeineLabel: '293 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
   ),
   CaffeineCatalogItem(
-    id: 'monster_355',
-    brand: '便利商店瓶罐',
-    productName: 'Monster 能量飲料',
-    sizeLabel: '355 ml',
-    caffeineMg: 114,
-    caffeineLabel: '待瓶身校正，暫用 114 mg',
-    locationHint: '台大醫院院內與周邊便利商店',
-    sourceName: '包裝標示',
-    sourceUrl: _ntuhLifeServiceUrl,
-    isEstimate: true,
-    note: '請以實際瓶身標示或品牌官網校正。',
+    id: 'starbucks_americano_hot_venti',
+    brand: 'Starbucks',
+    productName: '美式咖啡',
+    sizeLabel: '熱 特大杯 (Venti)',
+    caffeineMg: 390,
+    caffeineLabel: '390 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_americano_iced_tall',
+    brand: 'Starbucks',
+    productName: '美式咖啡',
+    sizeLabel: '冰 中杯 (Tall)',
+    caffeineMg: 195,
+    caffeineLabel: '195 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_americano_iced_grande',
+    brand: 'Starbucks',
+    productName: '美式咖啡',
+    sizeLabel: '冰 大杯 (Grande)',
+    caffeineMg: 293,
+    caffeineLabel: '293 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_americano_iced_venti',
+    brand: 'Starbucks',
+    productName: '美式咖啡',
+    sizeLabel: '冰 特大杯 (Venti)',
+    caffeineMg: 390,
+    caffeineLabel: '390 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_hot_short',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '熱 小杯 (Short)',
+    caffeineMg: 110,
+    caffeineLabel: '110 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_hot_tall',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '熱 中杯 (Tall)',
+    caffeineMg: 110,
+    caffeineLabel: '110 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_hot_venti',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '熱 特大杯 (Venti)',
+    caffeineMg: 182,
+    caffeineLabel: '182 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_iced_tall',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '冰 中杯 (Tall)',
+    caffeineMg: 102,
+    caffeineLabel: '102 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_iced_grande',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '冰 大杯 (Grande)',
+    caffeineMg: 183,
+    caffeineLabel: '183 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
+  ),
+  CaffeineCatalogItem(
+    id: 'starbucks_latte_iced_venti',
+    brand: 'Starbucks',
+    productName: '那堤',
+    sizeLabel: '冰 特大杯 (Venti)',
+    caffeineMg: 183,
+    caffeineLabel: '183 mg',
+    locationHint: _starbucksLocation,
+    sourceName: _starbucksSourceName,
+    sourceUrl: _starbucksSourceUrl,
   ),
 ];

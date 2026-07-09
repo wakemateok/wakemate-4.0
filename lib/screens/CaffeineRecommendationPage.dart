@@ -119,7 +119,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     final languageCode = Localizations.localeOf(context).languageCode;
 
     try {
-      const calculationTimeout = Duration(seconds: 60);
+      const calculationTimeout = Duration(seconds: 90);
       const fetchTimeout = Duration(seconds: 20);
       final calculationUrl =
           '${ApiConfig.baseUrl}/calculate/?user_id=${widget.userId}';
@@ -160,23 +160,19 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       final entries = data is List ? data : [data];
 
       if (entries.isEmpty) {
-        await NotificationService.instance.showCalculationComplete(
-          recommendationCount: 0,
-          languageCode: languageCode,
+        unawaited(
+          _configureNotifications(
+            entries: const [],
+            languageCode: languageCode,
+          ),
         );
         _showEmptyResult();
         return;
       }
 
       await _saveRecommendationData(entries);
-      final scheduledCount = await NotificationService.instance
-          .replaceCaffeineReminders(
-            recommendations: entries,
-            languageCode: languageCode,
-          );
-      await NotificationService.instance.showCalculationComplete(
-        recommendationCount: scheduledCount,
-        languageCode: languageCode,
+      unawaited(
+        _configureNotifications(entries: entries, languageCode: languageCode),
       );
       _showSnackBar(l10n.recommendationFetched, color: Colors.green);
 
@@ -197,6 +193,25 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       _showError('${l10n.networkError}: socket');
     } catch (e) {
       _showError('${l10n.recommendationFailed}: $e');
+    }
+  }
+
+  Future<void> _configureNotifications({
+    required List<dynamic> entries,
+    required String languageCode,
+  }) async {
+    try {
+      final scheduledCount = await NotificationService.instance
+          .replaceCaffeineReminders(
+            recommendations: entries,
+            languageCode: languageCode,
+          );
+      await NotificationService.instance.showCalculationComplete(
+        recommendationCount: scheduledCount,
+        languageCode: languageCode,
+      );
+    } catch (error) {
+      debugPrint('Notification setup failed: $error');
     }
   }
 

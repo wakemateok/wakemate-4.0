@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'CaffeineHistory.dart';
@@ -115,6 +116,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
   Future<void> sendAllDataAndFetchRecommendation() async {
     final l10n = AppLocalizations.of(context)!;
+    final languageCode = Localizations.localeOf(context).languageCode;
 
     try {
       const calculationTimeout = Duration(seconds: 60);
@@ -158,11 +160,24 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       final entries = data is List ? data : [data];
 
       if (entries.isEmpty) {
+        await NotificationService.instance.showCalculationComplete(
+          recommendationCount: 0,
+          languageCode: languageCode,
+        );
         _showEmptyResult();
         return;
       }
 
       await _saveRecommendationData(entries);
+      final scheduledCount = await NotificationService.instance
+          .replaceCaffeineReminders(
+            recommendations: entries,
+            languageCode: languageCode,
+          );
+      await NotificationService.instance.showCalculationComplete(
+        recommendationCount: scheduledCount,
+        languageCode: languageCode,
+      );
       _showSnackBar(l10n.recommendationFetched, color: Colors.green);
 
       if (!mounted) return;

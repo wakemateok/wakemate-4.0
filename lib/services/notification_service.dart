@@ -18,6 +18,7 @@ class NotificationService {
 
   bool _initialized = false;
   bool _supported = false;
+  bool _notificationPermissionRequested = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -33,14 +34,6 @@ class NotificationService {
       android: AndroidInitializationSettings('ic_launcher'),
     );
     await _plugin.initialize(settings: settings);
-
-    final android =
-        _plugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
-    await android?.requestNotificationsPermission();
-    await android?.requestExactAlarmsPermission();
   }
 
   Future<void> showCalculationComplete({
@@ -49,6 +42,7 @@ class NotificationService {
   }) async {
     await initialize();
     if (!_supported) return;
+    await _requestNotificationPermission();
 
     final text = _calculationText(languageCode, recommendationCount);
     await _plugin.show(
@@ -66,11 +60,23 @@ class NotificationService {
   }) async {
     await initialize();
     if (!_supported) return 0;
+    await _requestNotificationPermission();
 
     await _cancelPreviousReminders();
 
     final now = tz.TZDateTime.now(tz.local);
     final scheduledIds = <int>[];
+    final android =
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+    final canScheduleExact =
+        await android?.canScheduleExactNotifications() ?? false;
+    final scheduleMode =
+        canScheduleExact
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle;
 
     for (var index = 0; index < recommendations.length; index++) {
       final item = recommendations[index];
@@ -95,7 +101,7 @@ class NotificationService {
         body: text.body,
         scheduledDate: scheduledTime,
         notificationDetails: _notificationDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         payload: 'caffeine_reminder:$timestamp',
       );
       scheduledIds.add(id);
@@ -107,6 +113,18 @@ class NotificationService {
       scheduledIds.map((id) => id.toString()).toList(),
     );
     return scheduledIds.length;
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    if (_notificationPermissionRequested) return;
+    _notificationPermissionRequested = true;
+
+    final android =
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+    await android?.requestNotificationsPermission();
   }
 
   Future<void> _cancelPreviousReminders() async {

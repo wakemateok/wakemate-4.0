@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/providers/locale_provider.dart';
-import 'package:my_app/services/notification_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,9 +8,8 @@ import 'screens/LoginPage.dart';
 import 'screens/home_page.dart';
 import 'screens/questionnaire_prompt_page.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.initialize();
 
   runApp(
     ChangeNotifierProvider(

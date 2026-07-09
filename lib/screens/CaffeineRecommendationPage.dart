@@ -1,12 +1,16 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:my_app/api/api_config.dart';
+import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'CaffeineHistory.dart';
 
 class CaffeineRecommendationPage extends StatefulWidget {
@@ -31,6 +35,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
   bool _isLoading = true;
   String _errorMessage = "";
+  bool _isEmptyResult = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -43,11 +48,10 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.bounceOut),
     );
 
@@ -65,17 +69,18 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
   void _showSnackBar(String message, {Color color = Colors.red}) {
     if (!mounted) return;
-    final snackBar = SnackBar(
-      content: Text(
-        message,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Future<void> _saveRecommendationData(dynamic newData) async {
@@ -84,124 +89,137 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     List<dynamic> currentHistory;
     try {
       currentHistory = json.decode(dataStr);
-    } catch (e) {
-      print('Error decoding existing history: $e. Starting with empty list.');
+    } catch (_) {
       currentHistory = [];
     }
 
     final List<dynamic> newEntries = newData is List ? newData : [newData];
-
-    final String targetDateStr = DateFormat(
-      'yyyy-MM-dd',
-    ).format(widget.selectedDate);
+    final targetDateStr = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
 
     currentHistory =
         currentHistory.where((item) {
-          final String timingStr =
-              item['recommended_caffeine_intake_timing'] ?? '';
+          final timingStr =
+              item['recommended_caffeine_intake_timing']?.toString() ?? '';
           if (timingStr.isEmpty) return true;
-          final DateTime? parsed = DateTime.tryParse(timingStr)?.toLocal();
+          final parsed = apiTimestampToTaipei(timingStr);
           if (parsed == null) return true;
-          final String itemDateStr = DateFormat('yyyy-MM-dd').format(parsed);
-          return itemDateStr != targetDateStr;
+          return DateFormat('yyyy-MM-dd').format(parsed) != targetDateStr;
         }).toList();
 
     currentHistory.addAll(newEntries);
-
     await prefs.setString(
       'caffeine_recommendations',
       json.encode(currentHistory),
     );
-
-    print('✅ 已更新推薦資料，共 ${currentHistory.length} 筆');
   }
 
   Future<void> sendAllDataAndFetchRecommendation() async {
-    final userId = widget.userId;
+    final l10n = AppLocalizations.of(context)!;
 
     try {
-      const timeout = Duration(seconds: 15);
+      const calculationTimeout = Duration(seconds: 60);
+      const fetchTimeout = Duration(seconds: 20);
+      final calculationUrl =
+          '${ApiConfig.baseUrl}/calculate/?user_id=${widget.userId}';
+      final calculationResponse = await http
+          .post(Uri.parse(calculationUrl))
+          .timeout(calculationTimeout);
 
-      // ✅ 只保留「取得推薦」的部分
+      if (calculationResponse.statusCode != 200) {
+        final bodyPreview =
+            calculationResponse.body.length > 160
+                ? '${calculationResponse.body.substring(0, 160)}...'
+                : calculationResponse.body;
+        _showError(
+          '${l10n.recommendationFailed}: '
+          '${calculationResponse.statusCode}\n$bodyPreview',
+        );
+        return;
+      }
+
       final recommendationUrl =
-          "https://wakemate-api-4-0-qtgs.onrender.com/recommendations/?user_id=$userId";
-      final recommendationResponse = await http
+          '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
+      final response = await http
           .get(Uri.parse(recommendationUrl))
-          .timeout(timeout);
+          .timeout(fetchTimeout);
 
-      if (recommendationResponse.statusCode == 200) {
-        final data = json.decode(recommendationResponse.body);
-        _showSnackBar("計算成功！", color: Colors.green);
-        await _saveRecommendationData(data);
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => CaffeineHistoryPage(
-                  userId: widget.userId,
-                  selectedDate: widget.selectedDate,
-                ),
-          ),
+      if (response.statusCode != 200) {
+        final bodyPreview =
+            response.body.length > 120
+                ? '${response.body.substring(0, 120)}...'
+                : response.body;
+        _showError(
+          '${l10n.recommendationFailed}: ${response.statusCode}\n$bodyPreview',
         );
-      } else {
-        String bodyPreview =
-            recommendationResponse.body.length > 50
-                ? recommendationResponse.body.substring(0, 50) + '...'
-                : recommendationResponse.body;
-        _showSnackBar(
-          "計算失敗: ${recommendationResponse.statusCode}",
-          color: Colors.red,
-        );
-        if (mounted) {
-          setState(() {
-            _errorMessage =
-                "伺服器錯誤 (Status: ${recommendationResponse.statusCode})。\n回應內容預覽: $bodyPreview";
-            _isLoading = false;
-          });
-          _animationController.reverse();
-        }
+        return;
       }
+
+      final data = json.decode(utf8.decode(response.bodyBytes));
+      final entries = data is List ? data : [data];
+
+      if (entries.isEmpty) {
+        _showEmptyResult();
+        return;
+      }
+
+      await _saveRecommendationData(entries);
+      _showSnackBar(l10n.recommendationFetched, color: Colors.green);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => CaffeineHistoryPage(
+                userId: widget.userId,
+                selectedDate: widget.selectedDate,
+              ),
+        ),
+      );
     } on TimeoutException {
-      _showSnackBar("錯誤：請求逾時，請檢查您的網路連線。", color: Colors.red);
-      if (mounted) {
-        setState(() {
-          _errorMessage = "連線逾時。請檢查網路後重試。";
-          _isLoading = false;
-        });
-        _animationController.reverse();
-      }
+      _showError('${l10n.recommendationFailed}: timeout');
     } on SocketException {
-      _showSnackBar("網路連線錯誤，請檢查您的網路。", color: Colors.red);
-      if (mounted) {
-        setState(() {
-          _errorMessage = "無法連線到伺服器。請檢查網路。";
-          _isLoading = false;
-        });
-        _animationController.reverse();
-      }
+      _showError('${l10n.networkError}: socket');
     } catch (e) {
-      _showSnackBar("發生未知錯誤: $e", color: Colors.red);
-      if (mounted) {
-        setState(() {
-          _errorMessage = "發生未知錯誤: $e";
-          _isLoading = false;
-        });
-        _animationController.reverse();
-      }
+      _showError('${l10n.recommendationFailed}: $e');
     }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = message;
+      _isEmptyResult = false;
+      _isLoading = false;
+    });
+    _animationController.forward(from: 1);
+  }
+
+  void _showEmptyResult() {
+    final l10n = AppLocalizations.of(context)!;
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = l10n.noRecommendationBody;
+      _isEmptyResult = true;
+      _isLoading = false;
+    });
+    _animationController.forward(from: 1);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text(
-          "咖啡因建議",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+        title: Text(
+          l10n.recommendationTitle,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -220,8 +238,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
                     sigmaY: _animationController.value * 5,
                   ),
                   child: Container(
-                    color: Colors.black.withOpacity(
-                      0.1 * _animationController.value,
+                    color: Colors.black.withValues(
+                      alpha: 0.1 * _animationController.value,
                     ),
                     child: FadeTransition(
                       opacity: _fadeAnimation,
@@ -229,11 +247,11 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
                         scale: _scaleAnimation,
                         child: Center(
                           child: Padding(
-                            padding: const EdgeInsets.all(30.0),
+                            padding: const EdgeInsets.all(30),
                             child:
                                 _isLoading
-                                    ? _buildLoadingWidget()
-                                    : _buildErrorWidget(),
+                                    ? _buildLoadingWidget(l10n)
+                                    : _buildMessageWidget(l10n),
                           ),
                         ),
                       ),
@@ -248,14 +266,14 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     );
   }
 
-  Widget _buildLoadingWidget() {
+  Widget _buildLoadingWidget(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         CircularProgressIndicator(color: _primaryColor, strokeWidth: 5),
         const SizedBox(height: 24),
         Text(
-          "正在為您分析咖啡因數據...",
+          l10n.calculatingRecommendation,
           textAlign: TextAlign.center,
           style: TextStyle(
             color: _primaryColor,
@@ -265,7 +283,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         ),
         const SizedBox(height: 8),
         Text(
-          "這可能需要一點時間，請耐心等候",
+          l10n.recommendationNote,
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey[600], fontSize: 14),
         ),
@@ -273,16 +291,23 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     );
   }
 
-  Widget _buildErrorWidget() {
+  Widget _buildMessageWidget(AppLocalizations l10n) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.sentiment_dissatisfied, color: Colors.redAccent, size: 70),
+        Icon(
+          _isEmptyResult ? Icons.coffee_outlined : Icons.sentiment_dissatisfied,
+          color: _isEmptyResult ? _accentColor : Colors.redAccent,
+          size: 70,
+        ),
         const SizedBox(height: 20),
         Text(
-          "哎呀！計算失敗了...",
+          _isEmptyResult
+              ? l10n.noRecommendationTitle
+              : l10n.recommendationFailed,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            color: Colors.redAccent,
+            color: _isEmptyResult ? _primaryColor : Colors.redAccent,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
@@ -296,18 +321,17 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         const SizedBox(height: 40),
         ElevatedButton.icon(
           onPressed: () {
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-                _errorMessage = "";
-              });
-              _animationController.reset();
-              _animationController.forward();
-              sendAllDataAndFetchRecommendation();
-            }
+            setState(() {
+              _isLoading = true;
+              _isEmptyResult = false;
+              _errorMessage = "";
+            });
+            _animationController.reset();
+            _animationController.forward();
+            sendAllDataAndFetchRecommendation();
           },
           icon: const Icon(Icons.refresh, size: 20),
-          label: const Text("重新嘗試", style: TextStyle(fontSize: 18)),
+          label: Text(l10n.retry, style: const TextStyle(fontSize: 18)),
           style: ElevatedButton.styleFrom(
             backgroundColor: _primaryColor,
             foregroundColor: Colors.white,
@@ -322,7 +346,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(
-            "返回主頁",
+            l10n.back,
             style: TextStyle(color: _accentColor, fontSize: 16),
           ),
         ),

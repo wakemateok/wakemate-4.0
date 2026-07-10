@@ -10,8 +10,9 @@ class NotificationService {
   static final NotificationService instance = NotificationService._();
 
   static const _scheduledIdsKey = 'caffeine_reminder_notification_ids';
-  static const _channelId = 'wakemate_caffeine_reminders';
+  static const _channelId = 'wakemate_caffeine_reminders_v2';
   static const _channelName = 'WakeMate 咖啡因提醒';
+  static const _notificationIcon = 'ic_notification';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -31,7 +32,7 @@ class NotificationService {
     tz.setLocalLocation(tz.getLocation('Asia/Taipei'));
 
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('ic_launcher'),
+      android: AndroidInitializationSettings(_notificationIcon),
     );
     await _plugin.initialize(settings: settings);
   }
@@ -195,9 +196,11 @@ class NotificationService {
       _channelId,
       _channelName,
       channelDescription: '咖啡因推薦完成及建議飲用時間提醒',
+      icon: _notificationIcon,
       importance: Importance.max,
       priority: Priority.high,
       enableVibration: true,
+      ticker: 'WakeMate 咖啡因提醒',
     ),
   );
 }

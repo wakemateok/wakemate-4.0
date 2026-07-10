@@ -200,18 +200,25 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     required List<dynamic> entries,
     required String languageCode,
   }) async {
+    var scheduledCount = 0;
+
     try {
-      final scheduledCount = await NotificationService.instance
+      scheduledCount = await NotificationService.instance
           .replaceCaffeineReminders(
-            recommendations: entries,
-            languageCode: languageCode,
-          );
+        recommendations: entries,
+        languageCode: languageCode,
+      );
+    } catch (error) {
+      debugPrint('Caffeine reminder scheduling failed: $error');
+    }
+
+    try {
       await NotificationService.instance.showCalculationComplete(
         recommendationCount: scheduledCount,
         languageCode: languageCode,
       );
     } catch (error) {
-      debugPrint('Notification setup failed: $error');
+      debugPrint('Calculation notification failed: $error');
     }
   }
 

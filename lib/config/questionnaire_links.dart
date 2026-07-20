@@ -3,11 +3,18 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:my_app/api/api_config.dart';
 
+enum QuestionnaireLinkKind {
+  chineseBaseline,
+  indonesianBaseline,
+  chineseDaily,
+  indonesianDaily,
+}
+
 class QuestionnaireLinkEntry {
-  final String label;
+  final QuestionnaireLinkKind kind;
   final String url;
 
-  const QuestionnaireLinkEntry({required this.label, required this.url});
+  const QuestionnaireLinkEntry({required this.kind, required this.url});
 
   bool get hasUrl => url.trim().isNotEmpty;
 }
@@ -32,17 +39,23 @@ class QuestionnaireLinkSet {
   bool get hasDailyLink => dailyEntries.any((entry) => entry.hasUrl);
 
   List<QuestionnaireLinkEntry> get baselineEntries => [
-    QuestionnaireLinkEntry(label: '中文初始問卷', url: chineseBaselineUrl),
     QuestionnaireLinkEntry(
-      label: 'Kuesioner Awal Bahasa Indonesia',
+      kind: QuestionnaireLinkKind.chineseBaseline,
+      url: chineseBaselineUrl,
+    ),
+    QuestionnaireLinkEntry(
+      kind: QuestionnaireLinkKind.indonesianBaseline,
       url: indonesianBaselineUrl,
     ),
   ];
 
   List<QuestionnaireLinkEntry> get dailyEntries => [
-    QuestionnaireLinkEntry(label: '中文每日問卷', url: chineseDailyUrl),
     QuestionnaireLinkEntry(
-      label: 'Kuesioner Harian Bahasa Indonesia',
+      kind: QuestionnaireLinkKind.chineseDaily,
+      url: chineseDailyUrl,
+    ),
+    QuestionnaireLinkEntry(
+      kind: QuestionnaireLinkKind.indonesianDaily,
       url: indonesianDailyUrl,
     ),
   ];

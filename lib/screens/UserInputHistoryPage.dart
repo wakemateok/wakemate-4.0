@@ -102,6 +102,75 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
     return 'Time range cannot be longer than $_maxRecordDurationHours hours.';
   }
 
+  String _localizedDrinkHistoryName(String rawName) {
+    if (_isZh || rawName.trim().isEmpty) return rawName;
+
+    final replacements =
+        _isId
+            ? const {
+              '濃萃美式咖啡': 'Americano Pekat',
+              '濃萃拿鐵咖啡': 'Latte Pekat',
+              '特濃美式': 'Americano Ekstra Pekat',
+              '義式濃縮咖啡': 'Espresso',
+              '經典美式': 'Americano Klasik',
+              '經典拿鐵': 'Latte Klasik',
+              '美式咖啡': 'Americano',
+              '拿鐵咖啡': 'Latte',
+              '那堤': 'Caffe Latte',
+              '熱特大杯': 'Panas Ekstra besar',
+              '冰特大杯': 'Dingin Ekstra besar',
+              '熱大杯': 'Panas Besar',
+              '冰大杯': 'Dingin Besar',
+              '熱中杯': 'Panas Sedang',
+              '冰中杯': 'Dingin Sedang',
+              '熱小杯': 'Panas Kecil',
+              '冰小杯': 'Dingin Kecil',
+              '熱 特大杯': 'Panas Venti',
+              '冰 特大杯': 'Dingin Venti',
+              '熱 大杯': 'Panas Grande',
+              '冰 大杯': 'Dingin Grande',
+              '熱 中杯': 'Panas Tall',
+              '冰 中杯': 'Dingin Tall',
+              '熱 小杯': 'Panas Short',
+              '冰 小杯': 'Dingin Short',
+              '咖啡': 'Kopi',
+            }
+            : const {
+              '濃萃美式咖啡': 'Bold Americano',
+              '濃萃拿鐵咖啡': 'Bold Latte',
+              '特濃美式': 'Extra Strong Americano',
+              '義式濃縮咖啡': 'Espresso',
+              '經典美式': 'Classic Americano',
+              '經典拿鐵': 'Classic Latte',
+              '美式咖啡': 'Americano',
+              '拿鐵咖啡': 'Latte',
+              '那堤': 'Caffe Latte',
+              '熱特大杯': 'Hot Extra large',
+              '冰特大杯': 'Iced Extra large',
+              '熱大杯': 'Hot Large',
+              '冰大杯': 'Iced Large',
+              '熱中杯': 'Hot Medium',
+              '冰中杯': 'Iced Medium',
+              '熱小杯': 'Hot Small',
+              '冰小杯': 'Iced Small',
+              '熱 特大杯': 'Hot Venti',
+              '冰 特大杯': 'Iced Venti',
+              '熱 大杯': 'Hot Grande',
+              '冰 大杯': 'Iced Grande',
+              '熱 中杯': 'Hot Tall',
+              '冰 中杯': 'Iced Tall',
+              '熱 小杯': 'Hot Short',
+              '冰 小杯': 'Iced Short',
+              '咖啡': 'Coffee',
+            };
+
+    var localized = rawName;
+    for (final entry in replacements.entries) {
+      localized = localized.replaceAll(entry.key, entry.value);
+    }
+    return localized;
+  }
+
   DateTime? _parseAndLocalize(String? datetimeStr) {
     return apiTimestampToTaipei(datetimeStr);
   }
@@ -789,7 +858,9 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
     if (time == null) return const SizedBox.shrink();
 
     final amount = item['caffeine_amount'] ?? 'N/A';
-    final name = item['drink_name'] ?? '';
+    final name = _localizedDrinkHistoryName(
+      (item['drink_name'] ?? '').toString(),
+    );
     final id = item['id'] as int?;
 
     return _buildEntryContainer(

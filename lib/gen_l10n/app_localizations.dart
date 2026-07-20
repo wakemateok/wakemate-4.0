@@ -782,8 +782,548 @@ abstract class AppLocalizations {
   /// No description provided for @caffeineIntro.
   ///
   /// In en, this message translates to:
-  /// **'Choose a product near NTU Hospital or estimate caffeine manually. Product names are kept as shown on the source label.'**
+  /// **'Choose a product near NTU Hospital or estimate caffeine manually. Product details are shown in the selected app language when available.'**
   String get caffeineIntro;
+
+  /// No description provided for @loginWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome Back'**
+  String get loginWelcome;
+
+  /// No description provided for @loginTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get loginTitle;
+
+  /// No description provided for @loginSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your Email and password'**
+  String get loginSubtitle;
+
+  /// No description provided for @passwordLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Password'**
+  String get passwordLabel;
+
+  /// No description provided for @loginButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get loginButton;
+
+  /// No description provided for @loginMissingCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter Email and password.'**
+  String get loginMissingCredentials;
+
+  /// No description provided for @loginSuccessPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Login successful'**
+  String get loginSuccessPrefix;
+
+  /// No description provided for @loginMissingUserId.
+  ///
+  /// In en, this message translates to:
+  /// **'Login succeeded, but user ID was not returned.'**
+  String get loginMissingUserId;
+
+  /// No description provided for @loginInvalidCredentials.
+  ///
+  /// In en, this message translates to:
+  /// **'Login failed: Email or password is incorrect.'**
+  String get loginInvalidCredentials;
+
+  /// No description provided for @loginFailedPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Login failed'**
+  String get loginFailedPrefix;
+
+  /// No description provided for @serverUnknownError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown server error.'**
+  String get serverUnknownError;
+
+  /// No description provided for @serverInvalidResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'The server returned an invalid response.'**
+  String get serverInvalidResponse;
+
+  /// No description provided for @serverConnectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to connect to the server.'**
+  String get serverConnectionError;
+
+  /// No description provided for @noAccountPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'No account yet?'**
+  String get noAccountPrompt;
+
+  /// No description provided for @registerLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Register here'**
+  String get registerLink;
+
+  /// No description provided for @registerPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Account'**
+  String get registerPageTitle;
+
+  /// No description provided for @registerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a New Account'**
+  String get registerTitle;
+
+  /// No description provided for @nameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get nameLabel;
+
+  /// No description provided for @registerButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Register'**
+  String get registerButton;
+
+  /// No description provided for @registerMissingFields.
+  ///
+  /// In en, this message translates to:
+  /// **'Please fill in all fields.'**
+  String get registerMissingFields;
+
+  /// No description provided for @invalidEmailFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid Email format.'**
+  String get invalidEmailFormat;
+
+  /// No description provided for @registerSuccessLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration successful. Please sign in.'**
+  String get registerSuccessLogin;
+
+  /// No description provided for @registerEmailAlreadyRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration failed: this Email is already registered.'**
+  String get registerEmailAlreadyRegistered;
+
+  /// No description provided for @registerFailedPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration failed'**
+  String get registerFailedPrefix;
+
+  /// No description provided for @bodySettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Body Information'**
+  String get bodySettingsTitle;
+
+  /// No description provided for @genderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Gender'**
+  String get genderLabel;
+
+  /// No description provided for @maleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Male'**
+  String get maleLabel;
+
+  /// No description provided for @femaleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Female'**
+  String get femaleLabel;
+
+  /// No description provided for @ageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Age'**
+  String get ageLabel;
+
+  /// No description provided for @ageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your age'**
+  String get ageHint;
+
+  /// No description provided for @ageRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Age is required.'**
+  String get ageRequired;
+
+  /// No description provided for @invalidAge.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a valid age.'**
+  String get invalidAge;
+
+  /// No description provided for @heightLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Height (cm)'**
+  String get heightLabel;
+
+  /// No description provided for @heightHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your height'**
+  String get heightHint;
+
+  /// No description provided for @heightRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Height is required.'**
+  String get heightRequired;
+
+  /// No description provided for @invalidHeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a valid height.'**
+  String get invalidHeight;
+
+  /// No description provided for @weightLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Weight (kg)'**
+  String get weightLabel;
+
+  /// No description provided for @weightHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your weight'**
+  String get weightHint;
+
+  /// No description provided for @weightRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Weight is required.'**
+  String get weightRequired;
+
+  /// No description provided for @invalidWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a valid weight.'**
+  String get invalidWeight;
+
+  /// No description provided for @bmiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'BMI will be calculated automatically.'**
+  String get bmiHint;
+
+  /// No description provided for @saving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving...'**
+  String get saving;
+
+  /// No description provided for @saveSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Settings'**
+  String get saveSettings;
+
+  /// No description provided for @settingsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings saved.'**
+  String get settingsSaved;
+
+  /// No description provided for @settingsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save settings'**
+  String get settingsSaveFailed;
+
+  /// No description provided for @settingsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load data'**
+  String get settingsLoadFailed;
+
+  /// No description provided for @settingsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Data loading error'**
+  String get settingsLoadError;
+
+  /// No description provided for @completeRequiredFieldsAndGender.
+  ///
+  /// In en, this message translates to:
+  /// **'Please fill in all required fields and select gender.'**
+  String get completeRequiredFieldsAndGender;
+
+  /// No description provided for @baselineQuestionnaireTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Baseline Research Questionnaire'**
+  String get baselineQuestionnaireTitle;
+
+  /// No description provided for @baselineQuestionnaireBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This questionnaire only needs to be completed once at the beginning of the study. If you have already completed it or cannot fill it in now, you may skip it and enter WakeMate.'**
+  String get baselineQuestionnaireBody;
+
+  /// No description provided for @questionnaireReturnInstruction.
+  ///
+  /// In en, this message translates to:
+  /// **'After completing the questionnaire, close the browser window and switch back to the WakeMate app.'**
+  String get questionnaireReturnInstruction;
+
+  /// No description provided for @baselineQuestionnaireNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Baseline questionnaire links are not configured yet. You may skip and enter the app for now, or update the links later.'**
+  String get baselineQuestionnaireNotConfigured;
+
+  /// No description provided for @skipEnterApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip and Enter App'**
+  String get skipEnterApp;
+
+  /// No description provided for @linkNotConfiguredSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **'link is not configured yet.'**
+  String get linkNotConfiguredSuffix;
+
+  /// No description provided for @unableToOpenPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open'**
+  String get unableToOpenPrefix;
+
+  /// No description provided for @chineseBaselineQuestionnaire.
+  ///
+  /// In en, this message translates to:
+  /// **'Chinese Baseline Questionnaire'**
+  String get chineseBaselineQuestionnaire;
+
+  /// No description provided for @indonesianBaselineQuestionnaire.
+  ///
+  /// In en, this message translates to:
+  /// **'Indonesian Baseline Questionnaire'**
+  String get indonesianBaselineQuestionnaire;
+
+  /// No description provided for @chineseDailyQuestionnaire.
+  ///
+  /// In en, this message translates to:
+  /// **'Chinese Daily Questionnaire'**
+  String get chineseDailyQuestionnaire;
+
+  /// No description provided for @indonesianDailyQuestionnaire.
+  ///
+  /// In en, this message translates to:
+  /// **'Indonesian Daily Questionnaire'**
+  String get indonesianDailyQuestionnaire;
+
+  /// No description provided for @notificationCenterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationCenterTitle;
+
+  /// No description provided for @alertnessTapToStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Start'**
+  String get alertnessTapToStart;
+
+  /// No description provided for @alertnessWait.
+  ///
+  /// In en, this message translates to:
+  /// **'Please wait...'**
+  String get alertnessWait;
+
+  /// No description provided for @alertnessTapNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap now!'**
+  String get alertnessTapNow;
+
+  /// No description provided for @alertnessTooEarly.
+  ///
+  /// In en, this message translates to:
+  /// **'Too early. Try again.'**
+  String get alertnessTooEarly;
+
+  /// No description provided for @alertnessTrialPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'Trial'**
+  String get alertnessTrialPrefix;
+
+  /// No description provided for @alertnessTrialSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get alertnessTrialSuffix;
+
+  /// No description provided for @millisecondsUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'ms'**
+  String get millisecondsUnit;
+
+  /// No description provided for @alertnessResultTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Result'**
+  String get alertnessResultTitle;
+
+  /// No description provided for @alertnessEachReactionTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaction time for each trial:'**
+  String get alertnessEachReactionTime;
+
+  /// No description provided for @alertnessAverageReactionTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Average reaction time'**
+  String get alertnessAverageReactionTime;
+
+  /// No description provided for @alertnessChooseKss.
+  ///
+  /// In en, this message translates to:
+  /// **'Select your current alertness level (KSS):'**
+  String get alertnessChooseKss;
+
+  /// No description provided for @alertnessChooseKssHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select KSS score'**
+  String get alertnessChooseKssHint;
+
+  /// No description provided for @alertnessRetest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Again'**
+  String get alertnessRetest;
+
+  /// No description provided for @alertnessDoneClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Done and Close'**
+  String get alertnessDoneClose;
+
+  /// No description provided for @alertnessDataSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Data submitted successfully.'**
+  String get alertnessDataSent;
+
+  /// No description provided for @alertnessSubmitFailedStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Submit failed. Status code:'**
+  String get alertnessSubmitFailedStatus;
+
+  /// No description provided for @alertnessNetworkSubmitFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Network error. Unable to submit data.'**
+  String get alertnessNetworkSubmitFailed;
+
+  /// No description provided for @tapHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap Here'**
+  String get tapHere;
+
+  /// No description provided for @startTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Test'**
+  String get startTest;
+
+  /// No description provided for @kss1.
+  ///
+  /// In en, this message translates to:
+  /// **'Extremely alert'**
+  String get kss1;
+
+  /// No description provided for @kss2.
+  ///
+  /// In en, this message translates to:
+  /// **'Very alert'**
+  String get kss2;
+
+  /// No description provided for @kss3.
+  ///
+  /// In en, this message translates to:
+  /// **'Alert'**
+  String get kss3;
+
+  /// No description provided for @kss4.
+  ///
+  /// In en, this message translates to:
+  /// **'Rather alert'**
+  String get kss4;
+
+  /// No description provided for @kss5.
+  ///
+  /// In en, this message translates to:
+  /// **'Neither alert nor sleepy'**
+  String get kss5;
+
+  /// No description provided for @kss6.
+  ///
+  /// In en, this message translates to:
+  /// **'Some signs of sleepiness'**
+  String get kss6;
+
+  /// No description provided for @kss7.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleepy, but no effort to stay awake'**
+  String get kss7;
+
+  /// No description provided for @kss8.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleepy, some effort to stay awake'**
+  String get kss8;
+
+  /// No description provided for @kss9.
+  ///
+  /// In en, this message translates to:
+  /// **'Very sleepy, great effort to stay awake'**
+  String get kss9;
+
+  /// No description provided for @notificationChannelName.
+  ///
+  /// In en, this message translates to:
+  /// **'WakeMate reminders'**
+  String get notificationChannelName;
+
+  /// No description provided for @notificationChannelDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'WakeMate caffeine recommendation and reminder notifications'**
+  String get notificationChannelDescription;
 }
 
 class _AppLocalizationsDelegate

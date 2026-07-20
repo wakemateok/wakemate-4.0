@@ -229,6 +229,142 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     return 'Caffeine amount must be 1-$_maxSingleCaffeineMg mg per entry. If it is higher, split it into multiple records or check the input.';
   }
 
+  String _localizedCatalogProductName(CaffeineCatalogItem item) {
+    if (_isZh) return item.productName;
+
+    final isId = _isId;
+    if (item.id.contains('espresso_30ml')) {
+      return 'Espresso';
+    }
+    if (item.id.contains('strong_americano')) {
+      if (item.brand == "Let’s Café") {
+        return isId ? 'Americano Ekstra Pekat' : 'Extra Strong Americano';
+      }
+      return isId ? 'Americano Pekat' : 'Bold Americano';
+    }
+    if (item.id.contains('strong_latte')) {
+      return isId ? 'Latte Pekat' : 'Bold Latte';
+    }
+    if (item.id.contains('americano')) {
+      if (item.brand == "Let’s Café") {
+        return isId ? 'Americano Klasik' : 'Classic Americano';
+      }
+      return 'Americano';
+    }
+    if (item.id.contains('latte')) {
+      if (item.brand == "Let’s Café") {
+        return isId ? 'Latte Klasik' : 'Classic Latte';
+      }
+      if (item.brand == 'Starbucks') {
+        return isId ? 'Caffe Latte' : 'Caffe Latte';
+      }
+      return 'Latte';
+    }
+
+    return item.productName;
+  }
+
+  String _localizedCatalogSizeLabel(CaffeineCatalogItem item) {
+    if (_isZh) return item.sizeLabel;
+
+    final isId = _isId;
+    final hot = item.id.contains('_hot_');
+    final iced = item.id.contains('_iced_');
+    final temperature =
+        hot
+            ? (isId ? 'Panas' : 'Hot')
+            : iced
+            ? (isId ? 'Dingin' : 'Iced')
+            : '';
+
+    String size;
+    if (item.id.endsWith('_30ml')) {
+      size = '30 ml';
+    } else if (item.id.endsWith('_short')) {
+      size = 'Short';
+    } else if (item.id.endsWith('_tall')) {
+      size = 'Tall';
+    } else if (item.id.endsWith('_grande')) {
+      size = 'Grande';
+    } else if (item.id.endsWith('_venti')) {
+      size = 'Venti';
+    } else if (item.id.endsWith('_s')) {
+      size = isId ? 'Kecil' : 'Small';
+    } else if (item.id.endsWith('_m')) {
+      size = isId ? 'Sedang' : 'Medium';
+    } else if (item.id.endsWith('_l')) {
+      size = isId ? 'Besar' : 'Large';
+    } else if (item.id.endsWith('_xl')) {
+      size = isId ? 'Ekstra besar' : 'Extra large';
+    } else {
+      size = item.sizeLabel;
+    }
+
+    return temperature.isEmpty ? size : '$temperature $size';
+  }
+
+  String _localizedCatalogDisplayName(CaffeineCatalogItem item) {
+    return '${_localizedCatalogProductName(item)} ${_localizedCatalogSizeLabel(item)}';
+  }
+
+  String _localizedCatalogSourceName(CaffeineCatalogItem item) {
+    if (_isZh) return item.sourceName;
+    if (_isId) {
+      if (item.brand == 'CITY CAFE') {
+        return 'Tabel resmi kafein, kalori, dan gula CITY CAFE 2026/07/08';
+      }
+      if (item.brand == "Let’s Café") {
+        return 'Panduan label minuman racikan Let’s Café FamilyMart 2026/06/10';
+      }
+      if (item.brand == 'Starbucks') {
+        return 'Tabel nutrisi minuman Starbucks Taiwan 2026/07/01';
+      }
+    } else {
+      if (item.brand == 'CITY CAFE') {
+        return 'CITY CAFE official caffeine, calorie, and sugar table 2026/07/08';
+      }
+      if (item.brand == "Let’s Café") {
+        return 'FamilyMart Let’s Café prepared drink labeling manual 2026/06/10';
+      }
+      if (item.brand == 'Starbucks') {
+        return 'Starbucks Taiwan drink nutrition table 2026/07/01';
+      }
+    }
+    return item.sourceName;
+  }
+
+  String _localizedCatalogLocationHint(CaffeineCatalogItem item) {
+    if (_isZh) return item.locationHint;
+    if (_isId) {
+      if (item.brand == 'CITY CAFE') {
+        return '7-ELEVEN di Lantai 1 Gedung Timur RS NTU dan Stasiun MRT NTU Hospital';
+      }
+      if (item.brand == "Let’s Café") {
+        return 'FamilyMart RS NTU B1 dan gerai FamilyMart sekitar RS NTU';
+      }
+      if (item.brand == 'Starbucks') {
+        return 'Starbucks RS NTU B1 dan gerai sekitar RS NTU';
+      }
+    } else {
+      if (item.brand == 'CITY CAFE') {
+        return '7-ELEVEN at NTU Hospital East Site 1F and NTU Hospital MRT Station';
+      }
+      if (item.brand == "Let’s Café") {
+        return 'FamilyMart NTU Hospital B1 and nearby FamilyMart stores';
+      }
+      if (item.brand == 'Starbucks') {
+        return 'Starbucks NTU Hospital B1 and nearby stores';
+      }
+    }
+    return item.locationHint;
+  }
+
+  String _localizedCatalogNote(CaffeineCatalogItem item) {
+    if (item.note.isEmpty || _isZh) return item.note;
+    if (_isId) return item.note;
+    return item.note;
+  }
+
   String _drinkLabel(_DrinkType drink) {
     if (_isId) {
       return switch (drink.id) {
@@ -332,7 +468,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     if (_entryMode == _CaffeineEntryMode.catalog) {
       final item = _selectedCatalogItem;
       final estimateTag = item.isEstimate ? ' (${l10n.manualEstimate})' : '';
-      return '${item.brand} ${item.productName} ${item.sizeLabel}$estimateTag';
+      return '${item.brand} ${_localizedCatalogDisplayName(item)}$estimateTag';
     }
 
     final drink = _selectedDrink;
@@ -581,7 +717,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 return DropdownMenuItem(
                   value: item.id,
                   child: Text(
-                    '${item.productName} ${item.sizeLabel} - ${item.caffeineLabel}',
+                    '${_localizedCatalogDisplayName(item)} - ${item.caffeineLabel}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
@@ -606,18 +742,18 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                selectedItem.locationHint,
+                _localizedCatalogLocationHint(selectedItem),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 6),
               Text(
-                '${l10n.source}: ${selectedItem.sourceName}',
+                '${l10n.source}: ${_localizedCatalogSourceName(selectedItem)}',
                 style: const TextStyle(color: Colors.black54),
               ),
               if (selectedItem.note.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  selectedItem.note,
+                  _localizedCatalogNote(selectedItem),
                   style: const TextStyle(color: Colors.black54),
                 ),
               ],
@@ -896,7 +1032,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 ),
                 Text(
                   _entryMode == _CaffeineEntryMode.catalog
-                      ? '${_selectedCatalogItem.caffeineLabel} - ${_selectedCatalogItem.sourceName}'
+                      ? '${_selectedCatalogItem.caffeineLabel} - ${_localizedCatalogSourceName(_selectedCatalogItem)}'
                       : _drinkNameForSubmit,
                   style: const TextStyle(color: Colors.black54),
                 ),

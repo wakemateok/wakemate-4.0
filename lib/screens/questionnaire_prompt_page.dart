@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:my_app/config/questionnaire_links.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 
 const baselineQuestionnairePromptSeenKey = 'baseline_questionnaire_prompt_seen';
 
@@ -94,10 +95,12 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
   }
 
   Future<void> _openQuestionnaire(QuestionnaireLinkEntry entry) async {
+    final l10n = AppLocalizations.of(context)!;
+    final label = _questionnaireLabel(entry);
     final uri = Uri.tryParse(entry.url.trim());
 
     if (uri == null || !uri.hasScheme) {
-      _showMessage('${entry.label} 連結尚未設定');
+      _showMessage('$label ${l10n.linkNotConfiguredSuffix}');
       return;
     }
 
@@ -105,22 +108,25 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
 
     if (!mounted) return;
     if (!launched) {
-      _showMessage('無法開啟 ${entry.label}');
+      _showMessage('${l10n.unableToOpenPrefix} $label');
       return;
     }
 
-    _showMessage(_questionnaireReturnInstruction());
+    _showMessage(l10n.questionnaireReturnInstruction);
     await widget.onComplete();
   }
 
-  String _questionnaireReturnInstruction() {
-    switch (Localizations.localeOf(context).languageCode) {
-      case 'id':
-        return 'Setelah selesai mengisi kuesioner, tutup jendela browser dan kembali ke aplikasi WakeMate.';
-      case 'en':
-        return 'After completing the questionnaire, close the browser window and switch back to the WakeMate app.';
-      default:
-        return '填寫完成後，請自行關閉問卷視窗，切換回 WakeMate App。';
+  String _questionnaireLabel(QuestionnaireLinkEntry entry) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (entry.kind) {
+      case QuestionnaireLinkKind.chineseBaseline:
+        return l10n.chineseBaselineQuestionnaire;
+      case QuestionnaireLinkKind.indonesianBaseline:
+        return l10n.indonesianBaselineQuestionnaire;
+      case QuestionnaireLinkKind.chineseDaily:
+        return l10n.chineseDailyQuestionnaire;
+      case QuestionnaireLinkKind.indonesianDaily:
+        return l10n.indonesianDailyQuestionnaire;
     }
   }
 
@@ -132,6 +138,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final entries = _links.baselineEntries;
 
     return Scaffold(
@@ -152,7 +159,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    '研究初始問卷',
+                    l10n.baselineQuestionnaireTitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _primaryColor,
@@ -162,7 +169,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    '此問卷只需要在參與研究初期填寫一次。若您已填寫過，或目前不方便填寫，可以略過並進入 WakeMate。',
+                    l10n.baselineQuestionnaireBody,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _primaryColor.withValues(alpha: 0.82),
@@ -172,7 +179,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    _questionnaireReturnInstruction(),
+                    l10n.questionnaireReturnInstruction,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _primaryColor.withValues(alpha: 0.7),
@@ -187,7 +194,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                   ],
                   for (final entry in entries) ...[
                     _QuestionnaireButton(
-                      label: entry.label,
+                      label: _questionnaireLabel(entry),
                       enabled: !_isLoadingLinks && entry.hasUrl,
                       onPressed: () => _openQuestionnaire(entry),
                     ),
@@ -203,7 +210,7 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                         border: Border.all(color: const Color(0xFFE9C46A)),
                       ),
                       child: Text(
-                        '目前尚未設定初始問卷連結。請先略過進入 App，或稍後由後台更新問卷連結。',
+                        l10n.baselineQuestionnaireNotConfigured,
                         style: TextStyle(
                           color: _primaryColor,
                           fontSize: 14,
@@ -225,8 +232,8 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
-                      '略過，進入 App',
+                    child: Text(
+                      l10n.skipEnterApp,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,

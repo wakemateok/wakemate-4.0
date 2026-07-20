@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'home_page.dart';
 import 'RegisterPage.dart';
 import 'package:intl/intl.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
@@ -40,12 +41,13 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _saveLoginInfo(String userId, String email, String name) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('userId', userId);
-    await prefs.setString('userName', name.trim().isEmpty ? '用戶' : name.trim());
+    await prefs.setString('userName', name.trim());
     await prefs.setString('userEmail', email);
     await prefs.setBool('isLoggedIn', true);
   }
 
   Future<void> _loginUser() async {
+    final l10n = AppLocalizations.of(context)!;
     // ✂️ 移除 name 相關邏輯
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -54,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("請輸入 Email 與密碼")));
+      ).showSnackBar(SnackBar(content: Text(l10n.loginMissingCredentials)));
       return;
     }
 
@@ -87,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
         final String nameFromServer =
             data['name']?.toString().trim().isNotEmpty == true
                 ? data['name'].toString().trim()
-                : '用戶';
+                : l10n.userFallback;
 
         if (uuidFromServer != null && uuidFromServer.isNotEmpty) {
           await _saveLoginInfo(uuidFromServer, email, nameFromServer);
@@ -101,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    "登入成功！$now",
+                    "${l10n.loginSuccessPrefix}! $now",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -134,29 +136,32 @@ class _LoginPageState extends State<LoginPage> {
         } else {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text("登入成功，但無法取得使用者 ID")));
+          ).showSnackBar(SnackBar(content: Text(l10n.loginMissingUserId)));
           print('Response Body: ${res.body}');
         }
       } else if (res.statusCode == 401) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("❌ 登入失敗：Email 或密碼不正確"), // 📌 更新提示文字
+            content: Text(l10n.loginInvalidCredentials), // 📌 更新提示文字
             backgroundColor: _errorColor,
           ),
         );
       } else {
         try {
-          final errorMsg = jsonDecode(res.body)['error'] ?? "伺服器發生未知錯誤";
+          final errorMsg =
+              jsonDecode(res.body)['error'] ?? l10n.serverUnknownError;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("❌ 登入失敗：$errorMsg"),
+              content: Text("${l10n.loginFailedPrefix}: $errorMsg"),
               backgroundColor: _errorColor,
             ),
           );
         } on FormatException {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text("❌ 登入失敗：伺服器回傳了無效的回應"),
+              content: Text(
+                "${l10n.loginFailedPrefix}: ${l10n.serverInvalidResponse}",
+              ),
               backgroundColor: _errorColor,
             ),
           );
@@ -165,7 +170,7 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text("錯誤：無法連線到伺服器"),
+          content: Text(l10n.serverConnectionError),
           backgroundColor: _errorColor,
         ),
       );
@@ -178,13 +183,14 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          "歡迎回來",
+          l10n.loginWelcome,
           style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -223,7 +229,7 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          "帳號登入",
+                          l10n.loginTitle,
                           style: TextStyle(
                             fontSize: 32.0,
                             fontWeight: FontWeight.w900,
@@ -232,7 +238,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "請輸入您的 Email 與密碼", // 📌 更新提示文字
+                          l10n.loginSubtitle, // 📌 更新提示文字
                           style: TextStyle(
                             fontSize: 16.0,
                             color: Colors.grey[600],
@@ -255,7 +261,7 @@ class _LoginPageState extends State<LoginPage> {
                         // --- 密碼輸入框 ---
                         _buildTextField(
                           controller: passwordController,
-                          labelText: "密碼",
+                          labelText: l10n.passwordLabel,
                           icon: Icons.lock_outline,
                           obscureText: true,
                         ),
@@ -303,8 +309,8 @@ class _LoginPageState extends State<LoginPage> {
                                             strokeWidth: 2.5,
                                           ),
                                         )
-                                        : const Text(
-                                          "登入",
+                                        : Text(
+                                          l10n.loginButton,
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
@@ -341,9 +347,9 @@ class _LoginPageState extends State<LoginPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text("還沒有帳號？"),
+                              Text(l10n.noAccountPrompt),
                               Text(
-                                "點此註冊",
+                                l10n.registerLink,
                                 style: TextStyle(
                                   decoration: TextDecoration.underline,
                                   decorationColor: _accentColor,

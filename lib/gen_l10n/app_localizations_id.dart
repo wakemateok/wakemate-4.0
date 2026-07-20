@@ -361,5 +361,288 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get caffeineIntro =>
-      'Pilih produk di sekitar RS NTU atau estimasikan kafein secara manual. Nama produk dibiarkan sesuai label sumber.';
+      'Pilih produk di sekitar RS NTU atau estimasikan kafein secara manual. Detail produk ditampilkan sesuai bahasa aplikasi jika tersedia.';
+
+  @override
+  String get loginWelcome => 'Selamat Datang Kembali';
+
+  @override
+  String get loginTitle => 'Masuk';
+
+  @override
+  String get loginSubtitle => 'Masukkan Email dan kata sandi Anda';
+
+  @override
+  String get passwordLabel => 'Kata Sandi';
+
+  @override
+  String get loginButton => 'Masuk';
+
+  @override
+  String get loginMissingCredentials => 'Masukkan Email dan kata sandi.';
+
+  @override
+  String get loginSuccessPrefix => 'Berhasil masuk';
+
+  @override
+  String get loginMissingUserId =>
+      'Berhasil masuk, tetapi ID pengguna tidak diterima.';
+
+  @override
+  String get loginInvalidCredentials =>
+      'Gagal masuk: Email atau kata sandi salah.';
+
+  @override
+  String get loginFailedPrefix => 'Gagal masuk';
+
+  @override
+  String get serverUnknownError => 'Kesalahan server tidak diketahui.';
+
+  @override
+  String get serverInvalidResponse =>
+      'Server mengembalikan respons yang tidak valid.';
+
+  @override
+  String get serverConnectionError => 'Tidak dapat terhubung ke server.';
+
+  @override
+  String get noAccountPrompt => 'Belum punya akun?';
+
+  @override
+  String get registerLink => 'Daftar di sini';
+
+  @override
+  String get registerPageTitle => 'Buat Akun';
+
+  @override
+  String get registerTitle => 'Buat Akun Baru';
+
+  @override
+  String get nameLabel => 'Nama';
+
+  @override
+  String get registerButton => 'Daftar';
+
+  @override
+  String get registerMissingFields => 'Harap isi semua kolom.';
+
+  @override
+  String get invalidEmailFormat => 'Format Email tidak valid.';
+
+  @override
+  String get registerSuccessLogin => 'Pendaftaran berhasil. Silakan masuk.';
+
+  @override
+  String get registerEmailAlreadyRegistered =>
+      'Pendaftaran gagal: Email ini sudah terdaftar.';
+
+  @override
+  String get registerFailedPrefix => 'Pendaftaran gagal';
+
+  @override
+  String get bodySettingsTitle => 'Informasi Tubuh';
+
+  @override
+  String get genderLabel => 'Jenis Kelamin';
+
+  @override
+  String get maleLabel => 'Laki-laki';
+
+  @override
+  String get femaleLabel => 'Perempuan';
+
+  @override
+  String get ageLabel => 'Usia';
+
+  @override
+  String get ageHint => 'Masukkan usia Anda';
+
+  @override
+  String get ageRequired => 'Usia wajib diisi.';
+
+  @override
+  String get invalidAge => 'Masukkan usia yang valid.';
+
+  @override
+  String get heightLabel => 'Tinggi Badan (cm)';
+
+  @override
+  String get heightHint => 'Masukkan tinggi badan Anda';
+
+  @override
+  String get heightRequired => 'Tinggi badan wajib diisi.';
+
+  @override
+  String get invalidHeight => 'Masukkan tinggi badan yang valid.';
+
+  @override
+  String get weightLabel => 'Berat Badan (kg)';
+
+  @override
+  String get weightHint => 'Masukkan berat badan Anda';
+
+  @override
+  String get weightRequired => 'Berat badan wajib diisi.';
+
+  @override
+  String get invalidWeight => 'Masukkan berat badan yang valid.';
+
+  @override
+  String get bmiHint => 'BMI akan dihitung otomatis.';
+
+  @override
+  String get saving => 'Menyimpan...';
+
+  @override
+  String get saveSettings => 'Simpan Pengaturan';
+
+  @override
+  String get settingsSaved => 'Pengaturan disimpan.';
+
+  @override
+  String get settingsSaveFailed => 'Gagal menyimpan pengaturan';
+
+  @override
+  String get settingsLoadFailed => 'Gagal memuat data';
+
+  @override
+  String get settingsLoadError => 'Kesalahan saat memuat data';
+
+  @override
+  String get completeRequiredFieldsAndGender =>
+      'Harap isi semua kolom wajib dan pilih jenis kelamin.';
+
+  @override
+  String get baselineQuestionnaireTitle => 'Kuesioner Awal Penelitian';
+
+  @override
+  String get baselineQuestionnaireBody =>
+      'Kuesioner ini hanya perlu diisi satu kali pada awal penelitian. Jika sudah mengisi atau belum bisa mengisi sekarang, Anda dapat melewatinya dan masuk ke WakeMate.';
+
+  @override
+  String get questionnaireReturnInstruction =>
+      'Setelah selesai mengisi kuesioner, tutup jendela browser dan kembali ke aplikasi WakeMate.';
+
+  @override
+  String get baselineQuestionnaireNotConfigured =>
+      'Tautan kuesioner awal belum diatur. Anda dapat melewati dan masuk ke aplikasi terlebih dahulu, atau memperbarui tautan nanti.';
+
+  @override
+  String get skipEnterApp => 'Lewati dan Masuk ke App';
+
+  @override
+  String get linkNotConfiguredSuffix => 'tautan belum diatur.';
+
+  @override
+  String get unableToOpenPrefix => 'Tidak dapat membuka';
+
+  @override
+  String get chineseBaselineQuestionnaire => 'Kuesioner Awal Bahasa Mandarin';
+
+  @override
+  String get indonesianBaselineQuestionnaire =>
+      'Kuesioner Awal Bahasa Indonesia';
+
+  @override
+  String get chineseDailyQuestionnaire => 'Kuesioner Harian Bahasa Mandarin';
+
+  @override
+  String get indonesianDailyQuestionnaire =>
+      'Kuesioner Harian Bahasa Indonesia';
+
+  @override
+  String get notificationCenterTitle => 'Notifikasi';
+
+  @override
+  String get alertnessTapToStart => 'Ketuk Mulai';
+
+  @override
+  String get alertnessWait => 'Harap tunggu...';
+
+  @override
+  String get alertnessTapNow => 'Ketuk sekarang!';
+
+  @override
+  String get alertnessTooEarly => 'Terlalu cepat. Coba lagi.';
+
+  @override
+  String get alertnessTrialPrefix => 'Percobaan';
+
+  @override
+  String get alertnessTrialSuffix => '';
+
+  @override
+  String get millisecondsUnit => 'md';
+
+  @override
+  String get alertnessResultTitle => 'Hasil Tes';
+
+  @override
+  String get alertnessEachReactionTime => 'Waktu reaksi setiap percobaan:';
+
+  @override
+  String get alertnessAverageReactionTime => 'Rata-rata waktu reaksi';
+
+  @override
+  String get alertnessChooseKss =>
+      'Pilih tingkat kewaspadaan Anda saat ini (KSS):';
+
+  @override
+  String get alertnessChooseKssHint => 'Pilih skor KSS';
+
+  @override
+  String get alertnessRetest => 'Tes Lagi';
+
+  @override
+  String get alertnessDoneClose => 'Selesai dan Tutup';
+
+  @override
+  String get alertnessDataSent => 'Data berhasil dikirim.';
+
+  @override
+  String get alertnessSubmitFailedStatus => 'Gagal mengirim. Kode status:';
+
+  @override
+  String get alertnessNetworkSubmitFailed =>
+      'Kesalahan jaringan. Tidak dapat mengirim data.';
+
+  @override
+  String get tapHere => 'Ketuk Di Sini';
+
+  @override
+  String get startTest => 'Mulai Tes';
+
+  @override
+  String get kss1 => 'Sangat waspada';
+
+  @override
+  String get kss2 => 'Sangat segar';
+
+  @override
+  String get kss3 => 'Waspada';
+
+  @override
+  String get kss4 => 'Cukup waspada';
+
+  @override
+  String get kss5 => 'Tidak waspada dan tidak mengantuk';
+
+  @override
+  String get kss6 => 'Mulai ada tanda mengantuk';
+
+  @override
+  String get kss7 => 'Mengantuk, tetapi tidak perlu usaha untuk tetap terjaga';
+
+  @override
+  String get kss8 => 'Mengantuk, perlu usaha untuk tetap terjaga';
+
+  @override
+  String get kss9 => 'Sangat mengantuk, perlu usaha besar untuk tetap terjaga';
+
+  @override
+  String get notificationChannelName => 'Pengingat WakeMate';
+
+  @override
+  String get notificationChannelDescription =>
+      'Notifikasi rekomendasi dan pengingat kafein WakeMate';
 }

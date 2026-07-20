@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 //import 'LoginPage.dart';
 
 // RegisterPage 是一個 StatefulWidget，允許它管理自己的狀態
@@ -33,6 +34,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // 這個非同步函數處理使用者註冊流程
   Future<void> _registerUser() async {
+    final l10n = AppLocalizations.of(context)!;
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -41,7 +43,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("請輸入所有欄位")));
+      ).showSnackBar(SnackBar(content: Text(l10n.registerMissingFields)));
       return;
     }
 
@@ -49,7 +51,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (!emailRegExp.hasMatch(email)) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Email 格式不正確！")));
+      ).showSnackBar(SnackBar(content: Text(l10n.invalidEmailFormat)));
       return;
     }
 
@@ -79,32 +81,37 @@ class _RegisterPageState extends State<RegisterPage> {
         // 註冊成功
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("註冊成功！請登入")));
+        ).showSnackBar(SnackBar(content: Text(l10n.registerSuccessLogin)));
         Navigator.pop(context); // 返回上一頁（登入頁面）
       } else if (res.statusCode == 409) {
         // 處理衝突錯誤，例如 Email 已被註冊
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("❌ 註冊失敗：此 Email 已被註冊")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.registerEmailAlreadyRegistered)),
+        );
       } else {
         // 處理所有其他伺服器端錯誤
         try {
-          final errorMsg = jsonDecode(res.body)['error'] ?? "發生未知錯誤";
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("❌ 註冊失敗：$errorMsg")));
+          final errorMsg =
+              jsonDecode(res.body)['error'] ?? l10n.serverUnknownError;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("${l10n.registerFailedPrefix}: $errorMsg")),
+          );
         } on FormatException {
           // 如果伺服器回應不是有效的 JSON 格式
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("❌ 註冊失敗：伺服器回傳了無效的回應")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "${l10n.registerFailedPrefix}: ${l10n.serverInvalidResponse}",
+              ),
+            ),
+          );
         }
       }
     } catch (e) {
       // 捕捉網路連線等例外
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("錯誤：無法連線到伺服器")));
+      ).showSnackBar(SnackBar(content: Text(l10n.serverConnectionError)));
     } finally {
       // 無論成功或失敗，最後都將 loading 狀態設回 false
       setState(() => isLoading = false);
@@ -113,11 +120,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          "註冊新帳號",
+          l10n.registerPageTitle,
           style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
         ),
         centerTitle: true,
@@ -140,7 +148,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 mainAxisSize: MainAxisSize.min, // 讓 Column 佔用最小空間
                 children: [
                   Text(
-                    "創建新帳號",
+                    l10n.registerTitle,
                     style: TextStyle(
                       fontSize: 28.0,
                       fontWeight: FontWeight.bold,
@@ -151,7 +159,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextField(
                     controller: nameController,
                     decoration: InputDecoration(
-                      labelText: "名稱",
+                      labelText: l10n.nameLabel,
                       labelStyle: TextStyle(color: _textColor),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12.0),
@@ -184,7 +192,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextField(
                     controller: passwordController,
                     decoration: InputDecoration(
-                      labelText: "密碼",
+                      labelText: l10n.passwordLabel,
                       labelStyle: TextStyle(color: _textColor),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12.0),
@@ -217,8 +225,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 color: Colors.white,
                                 strokeWidth: 2,
                               )
-                              : const Text(
-                                "註冊",
+                              : Text(
+                                l10n.registerButton,
                                 style: TextStyle(fontSize: 18),
                               ),
                     ),

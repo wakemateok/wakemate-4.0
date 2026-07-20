@@ -13,8 +13,7 @@ class NotificationService {
 
   static const _scheduledIdsKey = 'caffeine_reminder_notification_ids';
   static const _historyKey = 'wakemate_notification_history';
-  static const _channelId = 'wakemate_caffeine_reminders_v2';
-  static const _channelName = 'WakeMate 咖啡因提醒';
+  static const _channelIdBase = 'wakemate_caffeine_reminders_v2';
   static const _notificationIcon = 'ic_notification';
   static const _maxHistoryItems = 80;
   static const _recentPastReminderGrace = Duration(minutes: 10);
@@ -55,7 +54,7 @@ class NotificationService {
       id: 1001,
       title: text.title,
       body: text.body,
-      notificationDetails: _notificationDetails,
+      notificationDetails: _notificationDetails(languageCode),
       payload: 'caffeine_recommendation_ready',
     );
     await _appendHistory(
@@ -76,7 +75,7 @@ class NotificationService {
       id: DateTime.now().millisecondsSinceEpoch % 2147483647,
       title: text.title,
       body: text.body,
-      notificationDetails: _notificationDetails,
+      notificationDetails: _notificationDetails(languageCode),
       payload: 'notification_test',
     );
     await _appendHistory(
@@ -123,7 +122,7 @@ class NotificationService {
             id: id,
             title: text.title,
             body: text.body,
-            notificationDetails: _notificationDetails,
+            notificationDetails: _notificationDetails(languageCode),
             payload: 'caffeine_reminder:$timestamp',
           );
           await _appendHistory(
@@ -149,6 +148,7 @@ class NotificationService {
         id: id,
         title: text.title,
         body: text.body,
+        languageCode: languageCode,
         scheduledTime: scheduledTime,
         payload: 'caffeine_reminder:$timestamp',
       );
@@ -198,6 +198,7 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
+    required String languageCode,
     required tz.TZDateTime scheduledTime,
     required String payload,
   }) async {
@@ -207,7 +208,7 @@ class NotificationService {
         title: title,
         body: body,
         scheduledDate: scheduledTime,
-        notificationDetails: _notificationDetails,
+        notificationDetails: _notificationDetails(languageCode),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: payload,
       );
@@ -222,7 +223,7 @@ class NotificationService {
         title: title,
         body: body,
         scheduledDate: scheduledTime,
-        notificationDetails: _notificationDetails,
+        notificationDetails: _notificationDetails(languageCode),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: payload,
       );
@@ -382,18 +383,44 @@ class NotificationService {
     }
   }
 
-  static const NotificationDetails _notificationDetails = NotificationDetails(
-    android: AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: '咖啡因推薦完成及建議飲用時間提醒',
-      icon: _notificationIcon,
-      importance: Importance.max,
-      priority: Priority.high,
-      enableVibration: true,
-      ticker: 'WakeMate 咖啡因提醒',
-    ),
-  );
+  _NotificationText _channelText(String languageCode) {
+    switch (languageCode) {
+      case 'id':
+        return const _NotificationText(
+          'Pengingat WakeMate',
+          'Notifikasi rekomendasi dan pengingat kafein WakeMate',
+        );
+      case 'en':
+        return const _NotificationText(
+          'WakeMate reminders',
+          'WakeMate caffeine recommendation and reminder notifications',
+        );
+      default:
+        return const _NotificationText('WakeMate 咖啡因提醒', '咖啡因推薦完成及建議飲用時間提醒');
+    }
+  }
+
+  NotificationDetails _notificationDetails(String languageCode) {
+    final channelText = _channelText(languageCode);
+    final channelSuffix = switch (languageCode) {
+      'id' => 'id',
+      'en' => 'en',
+      _ => 'zh',
+    };
+
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        '${_channelIdBase}_$channelSuffix',
+        channelText.title,
+        channelDescription: channelText.body,
+        icon: _notificationIcon,
+        importance: Importance.max,
+        priority: Priority.high,
+        enableVibration: true,
+        ticker: channelText.title,
+      ),
+    );
+  }
 }
 
 class _NotificationText {

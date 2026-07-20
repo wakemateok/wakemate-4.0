@@ -362,5 +362,286 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get caffeineIntro =>
-      'Choose a product near NTU Hospital or estimate caffeine manually. Product names are kept as shown on the source label.';
+      'Choose a product near NTU Hospital or estimate caffeine manually. Product details are shown in the selected app language when available.';
+
+  @override
+  String get loginWelcome => 'Welcome Back';
+
+  @override
+  String get loginTitle => 'Sign In';
+
+  @override
+  String get loginSubtitle => 'Enter your Email and password';
+
+  @override
+  String get passwordLabel => 'Password';
+
+  @override
+  String get loginButton => 'Sign In';
+
+  @override
+  String get loginMissingCredentials => 'Please enter Email and password.';
+
+  @override
+  String get loginSuccessPrefix => 'Login successful';
+
+  @override
+  String get loginMissingUserId =>
+      'Login succeeded, but user ID was not returned.';
+
+  @override
+  String get loginInvalidCredentials =>
+      'Login failed: Email or password is incorrect.';
+
+  @override
+  String get loginFailedPrefix => 'Login failed';
+
+  @override
+  String get serverUnknownError => 'Unknown server error.';
+
+  @override
+  String get serverInvalidResponse =>
+      'The server returned an invalid response.';
+
+  @override
+  String get serverConnectionError => 'Unable to connect to the server.';
+
+  @override
+  String get noAccountPrompt => 'No account yet?';
+
+  @override
+  String get registerLink => 'Register here';
+
+  @override
+  String get registerPageTitle => 'Create Account';
+
+  @override
+  String get registerTitle => 'Create a New Account';
+
+  @override
+  String get nameLabel => 'Name';
+
+  @override
+  String get registerButton => 'Register';
+
+  @override
+  String get registerMissingFields => 'Please fill in all fields.';
+
+  @override
+  String get invalidEmailFormat => 'Invalid Email format.';
+
+  @override
+  String get registerSuccessLogin => 'Registration successful. Please sign in.';
+
+  @override
+  String get registerEmailAlreadyRegistered =>
+      'Registration failed: this Email is already registered.';
+
+  @override
+  String get registerFailedPrefix => 'Registration failed';
+
+  @override
+  String get bodySettingsTitle => 'Body Information';
+
+  @override
+  String get genderLabel => 'Gender';
+
+  @override
+  String get maleLabel => 'Male';
+
+  @override
+  String get femaleLabel => 'Female';
+
+  @override
+  String get ageLabel => 'Age';
+
+  @override
+  String get ageHint => 'Enter your age';
+
+  @override
+  String get ageRequired => 'Age is required.';
+
+  @override
+  String get invalidAge => 'Please enter a valid age.';
+
+  @override
+  String get heightLabel => 'Height (cm)';
+
+  @override
+  String get heightHint => 'Enter your height';
+
+  @override
+  String get heightRequired => 'Height is required.';
+
+  @override
+  String get invalidHeight => 'Please enter a valid height.';
+
+  @override
+  String get weightLabel => 'Weight (kg)';
+
+  @override
+  String get weightHint => 'Enter your weight';
+
+  @override
+  String get weightRequired => 'Weight is required.';
+
+  @override
+  String get invalidWeight => 'Please enter a valid weight.';
+
+  @override
+  String get bmiHint => 'BMI will be calculated automatically.';
+
+  @override
+  String get saving => 'Saving...';
+
+  @override
+  String get saveSettings => 'Save Settings';
+
+  @override
+  String get settingsSaved => 'Settings saved.';
+
+  @override
+  String get settingsSaveFailed => 'Failed to save settings';
+
+  @override
+  String get settingsLoadFailed => 'Failed to load data';
+
+  @override
+  String get settingsLoadError => 'Data loading error';
+
+  @override
+  String get completeRequiredFieldsAndGender =>
+      'Please fill in all required fields and select gender.';
+
+  @override
+  String get baselineQuestionnaireTitle => 'Baseline Research Questionnaire';
+
+  @override
+  String get baselineQuestionnaireBody =>
+      'This questionnaire only needs to be completed once at the beginning of the study. If you have already completed it or cannot fill it in now, you may skip it and enter WakeMate.';
+
+  @override
+  String get questionnaireReturnInstruction =>
+      'After completing the questionnaire, close the browser window and switch back to the WakeMate app.';
+
+  @override
+  String get baselineQuestionnaireNotConfigured =>
+      'Baseline questionnaire links are not configured yet. You may skip and enter the app for now, or update the links later.';
+
+  @override
+  String get skipEnterApp => 'Skip and Enter App';
+
+  @override
+  String get linkNotConfiguredSuffix => 'link is not configured yet.';
+
+  @override
+  String get unableToOpenPrefix => 'Unable to open';
+
+  @override
+  String get chineseBaselineQuestionnaire => 'Chinese Baseline Questionnaire';
+
+  @override
+  String get indonesianBaselineQuestionnaire =>
+      'Indonesian Baseline Questionnaire';
+
+  @override
+  String get chineseDailyQuestionnaire => 'Chinese Daily Questionnaire';
+
+  @override
+  String get indonesianDailyQuestionnaire => 'Indonesian Daily Questionnaire';
+
+  @override
+  String get notificationCenterTitle => 'Notifications';
+
+  @override
+  String get alertnessTapToStart => 'Tap Start';
+
+  @override
+  String get alertnessWait => 'Please wait...';
+
+  @override
+  String get alertnessTapNow => 'Tap now!';
+
+  @override
+  String get alertnessTooEarly => 'Too early. Try again.';
+
+  @override
+  String get alertnessTrialPrefix => 'Trial';
+
+  @override
+  String get alertnessTrialSuffix => '';
+
+  @override
+  String get millisecondsUnit => 'ms';
+
+  @override
+  String get alertnessResultTitle => 'Test Result';
+
+  @override
+  String get alertnessEachReactionTime => 'Reaction time for each trial:';
+
+  @override
+  String get alertnessAverageReactionTime => 'Average reaction time';
+
+  @override
+  String get alertnessChooseKss => 'Select your current alertness level (KSS):';
+
+  @override
+  String get alertnessChooseKssHint => 'Select KSS score';
+
+  @override
+  String get alertnessRetest => 'Test Again';
+
+  @override
+  String get alertnessDoneClose => 'Done and Close';
+
+  @override
+  String get alertnessDataSent => 'Data submitted successfully.';
+
+  @override
+  String get alertnessSubmitFailedStatus => 'Submit failed. Status code:';
+
+  @override
+  String get alertnessNetworkSubmitFailed =>
+      'Network error. Unable to submit data.';
+
+  @override
+  String get tapHere => 'Tap Here';
+
+  @override
+  String get startTest => 'Start Test';
+
+  @override
+  String get kss1 => 'Extremely alert';
+
+  @override
+  String get kss2 => 'Very alert';
+
+  @override
+  String get kss3 => 'Alert';
+
+  @override
+  String get kss4 => 'Rather alert';
+
+  @override
+  String get kss5 => 'Neither alert nor sleepy';
+
+  @override
+  String get kss6 => 'Some signs of sleepiness';
+
+  @override
+  String get kss7 => 'Sleepy, but no effort to stay awake';
+
+  @override
+  String get kss8 => 'Sleepy, some effort to stay awake';
+
+  @override
+  String get kss9 => 'Very sleepy, great effort to stay awake';
+
+  @override
+  String get notificationChannelName => 'WakeMate reminders';
+
+  @override
+  String get notificationChannelDescription =>
+      'WakeMate caffeine recommendation and reminder notifications';
 }

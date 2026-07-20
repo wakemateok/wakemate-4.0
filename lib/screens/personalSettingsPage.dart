@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   final String userId;
@@ -50,6 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadUserSettings() async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _isLoading = true);
     try {
       final res = await http.get(
@@ -75,17 +77,19 @@ class _SettingsPageState extends State<SettingsPage> {
       } else {
         print("讀取資料失敗：${res.body}");
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("讀取資料失敗: ${res.statusCode}")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("${l10n.settingsLoadFailed}: ${res.statusCode}"),
+            ),
+          );
         }
       }
     } catch (e) {
       print("讀取資料錯誤：$e");
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("讀取資料錯誤：$e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("${l10n.settingsLoadError}: $e")),
+        );
       }
     } finally {
       setState(() => _isLoading = false);
@@ -93,10 +97,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveSettings() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate() || _gender == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("請完整填寫所有必填資料並選擇性別")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.completeRequiredFieldsAndGender)),
+      );
       return;
     }
 
@@ -137,20 +142,20 @@ class _SettingsPageState extends State<SettingsPage> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text("設定已保存成功！")));
+          ).showSnackBar(SnackBar(content: Text(l10n.settingsSaved)));
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("保存失敗：${res.body}")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("${l10n.settingsSaveFailed}: ${res.body}")),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("錯誤：$e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("${l10n.settingsSaveFailed}: $e")),
+        );
       }
     } finally {
       setState(() => _isLoading = false);
@@ -168,11 +173,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          "個人身體數據",
+          l10n.bodySettingsTitle,
           style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
         ),
         centerTitle: true,
@@ -192,7 +198,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       const SizedBox(height: 10),
                       Text(
-                        "性別",
+                        l10n.genderLabel,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -219,7 +225,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             Expanded(
                               child: RadioListTile<String>(
                                 title: Text(
-                                  "男",
+                                  l10n.maleLabel,
                                   style: TextStyle(color: _textColor),
                                 ),
                                 value: "M",
@@ -235,7 +241,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             Expanded(
                               child: RadioListTile<String>(
                                 title: Text(
-                                  "女",
+                                  l10n.femaleLabel,
                                   style: TextStyle(color: _textColor),
                                 ),
                                 value: "F",
@@ -254,17 +260,17 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 24),
                       _buildTextFormField(
                         controller: _ageController,
-                        labelText: "年齡",
-                        hintText: "請輸入您的年齡",
+                        labelText: l10n.ageLabel,
+                        hintText: l10n.ageHint,
                         keyboardType: TextInputType.number,
                         prefixIcon: Icons.cake_outlined,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return "年齡為必填項";
+                            return l10n.ageRequired;
                           }
                           if (int.tryParse(value) == null ||
                               int.parse(value) <= 0) {
-                            return "請輸入有效的年齡";
+                            return l10n.invalidAge;
                           }
                           return null;
                         },
@@ -272,17 +278,17 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 16),
                       _buildTextFormField(
                         controller: _heightController,
-                        labelText: "身高 (cm)",
-                        hintText: "請輸入您的身高",
+                        labelText: l10n.heightLabel,
+                        hintText: l10n.heightHint,
                         keyboardType: TextInputType.number,
                         prefixIcon: Icons.height,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return "身高為必填項";
+                            return l10n.heightRequired;
                           }
                           if (double.tryParse(value) == null ||
                               double.parse(value) <= 0) {
-                            return "請輸入有效身高";
+                            return l10n.invalidHeight;
                           }
                           return null;
                         },
@@ -290,17 +296,17 @@ class _SettingsPageState extends State<SettingsPage> {
                       const SizedBox(height: 16),
                       _buildTextFormField(
                         controller: _weightController,
-                        labelText: "體重 (kg)",
-                        hintText: "請輸入您的體重",
+                        labelText: l10n.weightLabel,
+                        hintText: l10n.weightHint,
                         keyboardType: TextInputType.number,
                         prefixIcon: Icons.scale,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return "體重為必填項";
+                            return l10n.weightRequired;
                           }
                           if (double.tryParse(value) == null ||
                               double.parse(value) <= 0) {
-                            return "請輸入有效體重";
+                            return l10n.invalidWeight;
                           }
                           return null;
                         },
@@ -309,7 +315,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       _buildTextFormField(
                         controller: _bmiController,
                         labelText: "BMI",
-                        hintText: "將自動計算您的 BMI",
+                        hintText: l10n.bmiHint,
                         keyboardType: TextInputType.number,
                         prefixIcon: Icons.calculate,
                         readOnly: true,
@@ -341,7 +347,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   )
                                   : const Icon(Icons.save),
                           label: Text(
-                            _isLoading ? "保存中..." : "保存設定",
+                            _isLoading ? l10n.saving : l10n.saveSettings,
                             style: const TextStyle(fontSize: 18),
                           ),
                         ),

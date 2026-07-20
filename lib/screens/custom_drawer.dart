@@ -210,13 +210,7 @@ class CustomDrawer extends StatelessWidget {
                     _buildDrawerItem(
                       context,
                       icon: Icons.notifications_active_outlined,
-                      title:
-                          Localizations.localeOf(context).languageCode == 'en'
-                              ? 'Notifications'
-                              : Localizations.localeOf(context).languageCode ==
-                                  'id'
-                              ? 'Notifikasi'
-                              : '通知確認',
+                      title: l10n.notificationCenterTitle,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(

@@ -122,23 +122,27 @@ class _HomePageState extends State<HomePage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _questionnaireReturnInstruction() {
-    switch (Localizations.localeOf(context).languageCode) {
-      case 'id':
-        return 'Setelah selesai mengisi kuesioner, tutup jendela browser dan kembali ke aplikasi WakeMate.';
-      case 'en':
-        return 'After completing the questionnaire, close the browser window and switch back to the WakeMate app.';
-      default:
-        return '填寫完成後，請自行關閉問卷視窗，切換回 WakeMate App。';
+  String _questionnaireLabel(QuestionnaireLinkEntry entry) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (entry.kind) {
+      case QuestionnaireLinkKind.chineseBaseline:
+        return l10n.chineseBaselineQuestionnaire;
+      case QuestionnaireLinkKind.indonesianBaseline:
+        return l10n.indonesianBaselineQuestionnaire;
+      case QuestionnaireLinkKind.chineseDaily:
+        return l10n.chineseDailyQuestionnaire;
+      case QuestionnaireLinkKind.indonesianDaily:
+        return l10n.indonesianDailyQuestionnaire;
     }
   }
 
   Future<void> _openQuestionnaire(QuestionnaireLinkEntry entry) async {
     final l10n = AppLocalizations.of(context)!;
+    final label = _questionnaireLabel(entry);
     final uri = Uri.tryParse(entry.url.trim());
 
     if (uri == null || !uri.hasScheme) {
-      _showMessage('${entry.label}: ${l10n.questionnaireNotConfigured}');
+      _showMessage('$label: ${l10n.questionnaireNotConfigured}');
       return;
     }
 
@@ -149,7 +153,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    _showMessage(_questionnaireReturnInstruction());
+    _showMessage(l10n.questionnaireReturnInstruction);
   }
 
   Future<void> _showDailyQuestionnaireDialog({
@@ -184,7 +188,7 @@ class _HomePageState extends State<HomePage> {
                 Text(l10n.dailyQuestionnaireMessage),
                 const SizedBox(height: 8),
                 Text(
-                  _questionnaireReturnInstruction(),
+                  l10n.questionnaireReturnInstruction,
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.72),
                     fontSize: 13,
@@ -199,7 +203,7 @@ class _HomePageState extends State<HomePage> {
                       _openQuestionnaire(entry);
                     },
                     icon: const Icon(Icons.open_in_new_outlined),
-                    label: Text(entry.label),
+                    label: Text(_questionnaireLabel(entry)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _primaryColor,
                       foregroundColor: Colors.white,

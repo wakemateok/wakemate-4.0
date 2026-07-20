@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class AlertnessTestPage extends StatefulWidget {
   final String userId;
@@ -25,7 +26,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   bool _isWaiting = true;
   bool _testStarted = false;
   Color _boxColor = const Color(0xFF5E91B3);
-  String _resultMessage = "點擊開始";
+  String _resultMessage = "";
   DateTime? _startTime;
   final List<Duration> _reactionTimes = [];
   int _currentTrial = 0;
@@ -39,12 +40,13 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   int? _selectedKssLevel;
 
   void _startTest() {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _reactionTimes.clear();
       _currentTrial = 0;
       _lapses = 0;
       _falseStarts = 0;
-      _resultMessage = "請等待...";
+      _resultMessage = l10n.alertnessWait;
     });
     _runTestSequence();
   }
@@ -65,11 +67,12 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     int randomDelay = 1000 + Random().nextInt(4000);
     _timer = Timer(Duration(milliseconds: randomDelay), () {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
         _isWaiting = false;
         _boxColor = _successColor;
         _startTime = DateTime.now();
-        _resultMessage = "請點擊！";
+        _resultMessage = l10n.alertnessTapNow;
       });
 
       _timer = Timer(const Duration(milliseconds: 2000), () {
@@ -84,6 +87,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
   void _boxTapped() {
     if (!_testStarted) return;
+    final l10n = AppLocalizations.of(context)!;
 
     if (_isWaiting) {
       _timer?.cancel();
@@ -91,7 +95,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         _testStarted = false;
         _boxColor = _errorColor;
         _isError = true;
-        _resultMessage = "❌ 點太快了！重來";
+        _resultMessage = l10n.alertnessTooEarly;
         _falseStarts++;
       });
 
@@ -115,7 +119,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         _boxColor = _boxDefaultColor;
         _isError = false;
         _resultMessage =
-            "第$_currentTrial次: ${adjustedReaction.inMilliseconds} 毫秒";
+            "${l10n.alertnessTrialPrefix}$_currentTrial${l10n.alertnessTrialSuffix}: ${adjustedReaction.inMilliseconds} ${l10n.millisecondsUnit}";
       });
 
       Future.delayed(const Duration(milliseconds: 1000), () {
@@ -136,32 +140,33 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     _showResultDialog(avgTime);
   }
 
-  String _getKssDescription(int level) {
+  String _getKssDescription(int level, AppLocalizations l10n) {
     switch (level) {
       case 1:
-        return "極度清醒";
+        return l10n.kss1;
       case 2:
-        return "非常清醒";
+        return l10n.kss2;
       case 3:
-        return "清醒";
+        return l10n.kss3;
       case 4:
-        return "還算清醒";
+        return l10n.kss4;
       case 5:
-        return "不清醒也不睏";
+        return l10n.kss5;
       case 6:
-        return "有一些睏意傾向";
+        return l10n.kss6;
       case 7:
-        return "有睏意，但是不需要努力保持清醒";
+        return l10n.kss7;
       case 8:
-        return "有睏意，且需要一定的努力保持清醒";
+        return l10n.kss8;
       case 9:
-        return "非常睏倦，需要極大的努力保持清醒";
+        return l10n.kss9;
       default:
         return "";
     }
   }
 
   void _showResultDialog(double avgTime) {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _selectedKssLevel = null;
     });
@@ -177,7 +182,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
           ),
           backgroundColor: _backgroundColor,
           title: Text(
-            "測試結果",
+            l10n.alertnessResultTitle,
             textAlign: TextAlign.center,
             style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
           ),
@@ -185,9 +190,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
             child: ListBody(
               children: [
                 const SizedBox(height: 10),
-                const Text(
-                  "每次反應時間：",
-                  style: TextStyle(
+                Text(
+                  l10n.alertnessEachReactionTime,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF555555),
                   ),
@@ -196,7 +201,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   int index = entry.key;
                   Duration time = entry.value;
                   return Text(
-                    "第${index + 1}次：${time.inMilliseconds} 毫秒",
+                    "${l10n.alertnessTrialPrefix}${index + 1}${l10n.alertnessTrialSuffix}: ${time.inMilliseconds} ${l10n.millisecondsUnit}",
                     style: const TextStyle(color: Color(0xFF777777)),
                   );
                 }),
@@ -206,7 +211,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   color: Color(0xFFDDDDDD),
                 ),
                 Text(
-                  "平均反應時間：${avgTime.toStringAsFixed(2)} 毫秒",
+                  "${l10n.alertnessAverageReactionTime}: ${avgTime.toStringAsFixed(2)} ${l10n.millisecondsUnit}",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
@@ -215,9 +220,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  "選擇您覺得的清醒程度 (KSS):",
-                  style: TextStyle(
+                Text(
+                  l10n.alertnessChooseKss,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF555555),
                   ),
@@ -237,13 +242,13 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                         child: DropdownButton<int>(
                           value: _selectedKssLevel,
                           isExpanded: true,
-                          hint: const Text("選擇 KSS 分數"),
+                          hint: Text(l10n.alertnessChooseKssHint),
                           items:
                               kssLevels.map((int level) {
                                 return DropdownMenuItem<int>(
                                   value: level,
                                   child: Text(
-                                    "$level - ${_getKssDescription(level)}",
+                                    "$level - ${_getKssDescription(level, l10n)}",
                                     style: const TextStyle(
                                       color: Colors.black87,
                                     ),
@@ -281,7 +286,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                 foregroundColor: _primaryColor,
                 textStyle: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              child: const Text("再測一次"),
+              child: Text(l10n.alertnessRetest),
             ),
             ElevatedButton(
               onPressed: () {
@@ -300,7 +305,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text("完成並關閉"),
+              child: Text(l10n.alertnessDoneClose),
             ),
           ],
         );
@@ -322,6 +327,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     int lapses,
     int falseStarts,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     final url = Uri.parse('$baseUrl/users_pvt/');
 
     try {
@@ -342,9 +348,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
       if (res.statusCode == 200 || res.statusCode == 201) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('數據已成功送出！'),
-              backgroundColor: Color(0xFF28A745),
+            SnackBar(
+              content: Text(l10n.alertnessDataSent),
+              backgroundColor: const Color(0xFF28A745),
             ),
           );
         }
@@ -352,7 +358,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('送出失敗，狀態碼：${res.statusCode}'),
+              content: Text(
+                '${l10n.alertnessSubmitFailedStatus} ${res.statusCode}',
+              ),
               backgroundColor: _errorColor,
             ),
           );
@@ -361,9 +369,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('網路錯誤，無法送出數據'),
-            backgroundColor: Color(0xFFDC3545),
+          SnackBar(
+            content: Text(l10n.alertnessNetworkSubmitFailed),
+            backgroundColor: const Color(0xFFDC3545),
           ),
         );
       }
@@ -378,11 +386,12 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          "清醒度測試",
+          l10n.alertnessTest,
           style: TextStyle(
             color: _primaryColor,
             fontWeight: FontWeight.bold,
@@ -401,7 +410,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                _resultMessage,
+                _resultMessage.isEmpty
+                    ? l10n.alertnessTapToStart
+                    : _resultMessage,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -431,9 +442,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   alignment: Alignment.center,
                   child:
                       !_testStarted
-                          ? const Text(
-                            "點擊此處",
-                            style: TextStyle(
+                          ? Text(
+                            l10n.tapHere,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -460,7 +471,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                child: const Text("開始測試"),
+                child: Text(l10n.startTest),
               ),
             ],
           ),

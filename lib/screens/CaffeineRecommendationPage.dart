@@ -160,19 +160,18 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       final entries = data is List ? data : [data];
 
       if (entries.isEmpty) {
-        unawaited(
-          _configureNotifications(
-            entries: const [],
-            languageCode: languageCode,
-          ),
+        await _configureNotifications(
+          entries: const [],
+          languageCode: languageCode,
         );
         _showEmptyResult();
         return;
       }
 
       await _saveRecommendationData(entries);
-      unawaited(
-        _configureNotifications(entries: entries, languageCode: languageCode),
+      await _configureNotifications(
+        entries: entries,
+        languageCode: languageCode,
       );
       _showSnackBar(l10n.recommendationFetched, color: Colors.green);
 
@@ -205,9 +204,9 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     try {
       scheduledCount = await NotificationService.instance
           .replaceCaffeineReminders(
-        recommendations: entries,
-        languageCode: languageCode,
-      );
+            recommendations: entries,
+            languageCode: languageCode,
+          );
     } catch (error) {
       debugPrint('Caffeine reminder scheduling failed: $error');
     }

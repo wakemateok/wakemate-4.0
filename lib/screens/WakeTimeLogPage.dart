@@ -1,23 +1,22 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:my_app/api/day_record_replacement.dart';
+import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Key 用於儲存多個目標清醒時間段 (本地)
-const String _kTargetWakePeriodsKey = 'target_wake_periods_list_json';
-
-// 用於儲存每個時間段的資料結構
 class TimeSlot {
   final Key key = UniqueKey();
-  TextEditingController startController;
-  TextEditingController endController;
+  final TextEditingController startController;
+  final TextEditingController endController;
 
   TimeSlot({String? startTime, String? endTime})
     : startController = TextEditingController(text: startTime),
       endController = TextEditingController(text: endTime);
 
-  // 轉換為本地儲存用的格式
   Map<String, String> toJson() => {
     'start': startController.text,
     'end': endController.text,
@@ -28,6 +27,11 @@ class TimeSlot {
       startTime: json['start'] as String?,
       endTime: json['end'] as String?,
     );
+  }
+
+  void dispose() {
+    startController.dispose();
+    endController.dispose();
   }
 }
 
@@ -46,16 +50,18 @@ class TargetWakeTimePage extends StatefulWidget {
 }
 
 class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
-  // 🎨 顏色變數 (套用 HomePage 的風格)
-  final Color _primaryColor = const Color(0xFF4B6B7A); // 深灰藍
-  final Color _accentColor = const Color(0xFF8BB9A1); // 柔綠藍
-  final Color _bgLight = const Color(0xFFF9F9F7); // 米白
-
-  // API Base URL
+  final Color _primaryColor = const Color(0xFF4B6B7A);
+  final Color _accentColor = const Color(0xFF8BB9A1);
+  final Color _bgLight = const Color(0xFFF9F9F7);
   final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
+  static const int _maxWakeDurationHours = 48;
 
-  // 管理所有時間段的列表
   final List<TimeSlot> _timeSlots = [];
+
+  String get _targetWakePeriodsKey {
+    final dateKey = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+    return 'target_wake_periods_${widget.userId}_$dateKey';
+  }
 
   @override
   void initState() {
@@ -63,36 +69,47 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
     _loadSavedPeriods();
   }
 
-  // ============== 資料加載與儲存 (本地) ==============
-  void _loadSavedPeriods() async {
+  @override
+  void dispose() {
+    for (final slot in _timeSlots) {
+      slot.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadSavedPeriods() async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_kTargetWakePeriodsKey);
+    final jsonString = prefs.getString(_targetWakePeriodsKey);
 
     if (jsonString != null && jsonString.isNotEmpty) {
       try {
         final List<dynamic> jsonList = json.decode(jsonString);
+        if (!mounted) return;
         setState(() {
-          _timeSlots.addAll(jsonList.map((j) => TimeSlot.fromJson(j)));
+          _timeSlots.addAll(
+            jsonList.whereType<Map<String, dynamic>>().map(
+              (item) => TimeSlot.fromJson(item),
+            ),
+          );
         });
-      } catch (e) {
-        // 如果載入失敗，會進入 _addTimeSlot()
+      } catch (_) {
+        // Fall through and create a default slot.
       }
     }
 
-    // 如果沒有任何儲存的時段，則新增一個預設時段
-    if (_timeSlots.isEmpty) {
+    if (mounted && _timeSlots.isEmpty) {
       _addTimeSlot();
     }
   }
 
   void _addTimeSlot() {
-    final now = widget.selectedDate;
-    final defaultStart = DateFormat(
-      'yyyy-MM-dd HH:mm',
-    ).format(DateTime(now.year, now.month, now.day, 9, 0));
-    final defaultEnd = DateFormat(
-      'yyyy-MM-dd HH:mm',
-    ).format(DateTime(now.year, now.month, now.day, 10, 0));
+    final selectedDate = widget.selectedDate;
+    final defaultStart = DateFormat('yyyy-MM-dd HH:mm').format(
+      DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 9),
+    );
+    final defaultEnd = DateFormat('yyyy-MM-dd HH:mm').format(
+      DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 10),
+    );
 
     setState(() {
       _timeSlots.add(TimeSlot(startTime: defaultStart, endTime: defaultEnd));
@@ -101,154 +118,173 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
 
   void _removeTimeSlot(Key key) {
     setState(() {
+      final removed = _timeSlots.where((slot) => slot.key == key).toList();
       _timeSlots.removeWhere((slot) => slot.key == key);
-      if (_timeSlots.isEmpty) {
-        _addTimeSlot(); // 確保至少有一個時段
+      for (final slot in removed) {
+        slot.dispose();
       }
+      if (_timeSlots.isEmpty) _addTimeSlot();
     });
   }
 
-  // ============== API 提交邏輯 ==============
-  /// 將 yyyy-MM-dd HH:mm 轉成 ISO8601 (UTC 格式)
-  String _formatToISO8601(String time) {
+  void _showSnackBar(String message, {Color color = Colors.red}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  DateTime? _parseInputDateTime(String value) {
     try {
-      // 假設使用者輸入的是當地時間，我們將其視為 UTC 提交給 API
-      final dt = DateFormat('yyyy-MM-dd HH:mm').parse(time, true);
-      return dt.toIso8601String();
-    } catch (e) {
-      return DateTime.now().toIso8601String();
+      return parseTaipeiInput(value);
+    } catch (_) {
+      return null;
     }
   }
 
+  String _formatToISO8601(String value) => taipeiInputToUtcIso(value);
+
+  bool get _isZh => AppLocalizations.of(context)!.localeName.startsWith('zh');
+  bool get _isId => AppLocalizations.of(context)!.localeName.startsWith('id');
+
+  String get _wakePeriodTooLongMessage {
+    if (_isId) {
+      return 'Rentang waktu target tetap terjaga tidak boleh lebih dari $_maxWakeDurationHours jam.';
+    }
+    if (_isZh) {
+      return '目標清醒時段不可超過 $_maxWakeDurationHours 小時。';
+    }
+    return 'Target wake period cannot be longer than $_maxWakeDurationHours hours.';
+  }
+
   Future<void> _saveData() async {
+    final l10n = AppLocalizations.of(context)!;
+
     if (_timeSlots.any(
       (slot) =>
-          slot.startController.text.isEmpty || slot.endController.text.isEmpty,
+          slot.startController.text.trim().isEmpty ||
+          slot.endController.text.trim().isEmpty,
     )) {
-      _showSnackBar("請填寫所有時段的開始與結束時間。", color: Colors.red);
+      _showSnackBar(l10n.invalidDateTimeFormat);
       return;
     }
 
-    // 1. 驗證時間邏輯
-    try {
-      for (var slot in _timeSlots) {
-        final dtStart = DateFormat(
-          'yyyy-MM-dd HH:mm',
-        ).parse(slot.startController.text);
-        final dtEnd = DateFormat(
-          'yyyy-MM-dd HH:mm',
-        ).parse(slot.endController.text);
+    for (final slot in _timeSlots) {
+      final start = _parseInputDateTime(slot.startController.text);
+      final end = _parseInputDateTime(slot.endController.text);
 
-        if (dtEnd.isBefore(dtStart)) {
-          _showSnackBar("錯誤：有時段的結束時間早於開始時間，請修正。", color: Colors.red);
-          return;
-        }
+      if (start == null || end == null) {
+        _showSnackBar(l10n.invalidDateTimeFormat);
+        return;
       }
-    } catch (e) {
-      _showSnackBar("時間格式錯誤，請重新選擇。", color: Colors.red);
-      return;
+      if (!end.isAfter(start)) {
+        _showSnackBar(l10n.endAfterStart);
+        return;
+      }
+      if (end.difference(start).inMinutes > _maxWakeDurationHours * 60) {
+        _showSnackBar(_wakePeriodTooLongMessage);
+        return;
+      }
     }
 
-    final headers = {'Content-Type': 'application/json'};
-    int successfulSubmissions = 0;
-
+    var cleanupFailed = false;
     try {
-      // 針對每一個時段，執行一次 API 提交
-      for (var slot in _timeSlots) {
+      await deleteExistingDayRecords(
+        baseUrl: baseUrl,
+        endpoint: 'users_wake',
+        userId: widget.userId,
+        selectedDate: widget.selectedDate,
+        dateField: 'target_start_time',
+      );
+    } catch (_) {
+      cleanupFailed = true;
+    }
+
+    var successfulSubmissions = 0;
+    final headers = {'Content-Type': 'application/json'};
+
+    for (final slot in _timeSlots) {
+      try {
         final payload = {
           'user_id': widget.userId,
           'target_start_time': _formatToISO8601(slot.startController.text),
           'target_end_time': _formatToISO8601(slot.endController.text),
         };
 
-        final res = await http.post(
-          Uri.parse('$baseUrl/users_wake/'),
-          headers: headers,
-          body: jsonEncode(payload),
-        );
+        final response = await http
+            .post(
+              Uri.parse('$baseUrl/users_wake/'),
+              headers: headers,
+              body: jsonEncode(payload),
+            )
+            .timeout(const Duration(seconds: 20));
 
-        if (res.statusCode == 200) {
+        if (response.statusCode == 200) {
           successfulSubmissions++;
         } else {
-          // 提交失敗，顯示錯誤但繼續下一個時段
-          _showSnackBar(
-            "第 ${_timeSlots.indexOf(slot) + 1} 個時段提交失敗 (Status: ${res.statusCode})",
-            color: Colors.orange,
-          );
+          final body =
+              response.body.isEmpty
+                  ? ''
+                  : '\n${utf8.decode(response.bodyBytes)}';
+          _showSnackBar('${l10n.wakeSaveFailed}: ${response.statusCode}$body');
         }
+      } catch (e) {
+        _showSnackBar('${l10n.networkError}: $e');
       }
+    }
 
-      // 2. 處理結果並更新本地緩存
-      if (successfulSubmissions == _timeSlots.length) {
-        // 全部成功：更新本地緩存
-        final jsonList = _timeSlots.map((slot) => slot.toJson()).toList();
-        final jsonString = json.encode(jsonList);
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_kTargetWakePeriodsKey, jsonString);
+    if (successfulSubmissions == _timeSlots.length) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _targetWakePeriodsKey,
+        jsonEncode(_timeSlots.map((slot) => slot.toJson()).toList()),
+      );
 
-        _showSnackBar(
-          "成功儲存 ${_timeSlots.length} 個目標清醒時段！",
-          color: _accentColor, // ✅
-        );
+      _showSnackBar(
+        cleanupFailed
+            ? '${l10n.wakeSaveSuccess}\n${l10n.deleteOldRecordsWarning}'
+            : l10n.wakeSaveSuccess,
+        color: _accentColor,
+      );
+      if (mounted) Navigator.of(context).pop(true);
+      return;
+    }
 
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      } else if (successfulSubmissions > 0) {
-        // 部分成功：僅更新本地緩存 (如果所有時段都通過本地驗證)
-        _showSnackBar(
-          "成功提交 $successfulSubmissions 個時段，有 ${(_timeSlots.length - successfulSubmissions)} 個提交失敗。",
-          color: Colors.orange,
-        );
-      } else {
-        // 全部失敗
-        _showSnackBar("所有目標清醒時段提交失敗，請檢查網路或 API 狀態。", color: Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar("發生網路錯誤：$e");
+    if (successfulSubmissions > 0) {
+      _showSnackBar(l10n.wakeSavePartial, color: Colors.orange);
+    } else {
+      _showSnackBar(l10n.wakeSaveFailed);
     }
   }
 
-  // ============== UI 輔助函數 ==============
-  void _showSnackBar(String message, {Color color = Colors.red}) {
-    // 保持您的 SnackBar 樣式
-    final snackBar = SnackBar(
-      content: Text(
-        message,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
-  }
-
-  /// 彈出日期+時間選擇器
   Future<void> _pickDateTime(TextEditingController controller) async {
-    DateTime initialDateTime;
-    try {
-      initialDateTime = DateFormat('yyyy-MM-dd HH:mm').parse(controller.text);
-    } catch (e) {
-      initialDateTime = DateTime.now();
-    }
+    final initialDateTime =
+        _parseInputDateTime(controller.text) ?? widget.selectedDate;
 
-    DateTime? pickedDate = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDateTime,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (pickedDate == null) return;
+    if (pickedDate == null || !mounted) return;
 
-    TimeOfDay? pickedTime = await showTimePicker(
+    final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDateTime),
     );
     if (pickedTime == null) return;
 
-    DateTime finalDateTime = DateTime(
+    final finalDateTime = DateTime(
       pickedDate.year,
       pickedDate.month,
       pickedDate.day,
@@ -259,11 +295,35 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
     controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
   }
 
-  // 建立單一時段的 UI
+  Widget _buildDateTimeField({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.datetime,
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: l10n.dateTimeHelper,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        prefixIcon: Icon(Icons.access_time, color: _primaryColor),
+        suffixIcon: IconButton(
+          tooltip: l10n.chooseDateTime,
+          icon: const Icon(Icons.calendar_month_outlined),
+          onPressed: () => _pickDateTime(controller),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTimeSlot(TimeSlot slot) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Padding(
       key: slot.key,
-      padding: const EdgeInsets.only(bottom: 20.0),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -271,7 +331,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '目標清醒時段 #${_timeSlots.indexOf(slot) + 1}',
+                '${l10n.wakeSlot} #${_timeSlots.indexOf(slot) + 1}',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -289,46 +349,14 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
             ],
           ),
           const SizedBox(height: 8),
-
-          // ✅ 修正：從 Row 改為 Column，以適應小螢幕
-          Column(
-            children: [
-              // 1. 開始時間
-              TextField(
-                controller: slot.startController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: '開始時間',
-                  hintText: '例如: 05:00',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: Icon(Icons.access_time, color: _primaryColor),
-                ),
-                onTap: () => _pickDateTime(slot.startController),
-              ),
-
-              // ✅ 修正：加入垂直間距
-              const SizedBox(height: 16),
-
-              // 2. 結束時間
-              TextField(
-                controller: slot.endController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: '結束時間',
-                  hintText: '例如: 06:00',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: Icon(
-                    Icons.access_time_filled,
-                    color: _primaryColor,
-                  ),
-                ),
-                onTap: () => _pickDateTime(slot.endController),
-              ),
-            ],
+          _buildDateTimeField(
+            controller: slot.startController,
+            label: l10n.startTime,
+          ),
+          const SizedBox(height: 16),
+          _buildDateTimeField(
+            controller: slot.endController,
+            label: l10n.endTime,
           ),
           const Divider(height: 25, color: Colors.grey),
         ],
@@ -338,77 +366,80 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: _bgLight,
       appBar: AppBar(
         title: Text(
-          '設定目標清醒時段',
+          l10n.wakePageTitle,
           style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white.withOpacity(0.9),
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
         elevation: 1,
         shadowColor: Colors.black12,
         iconTheme: IconThemeData(color: _primaryColor),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const Text(
-              '請輸入您希望保持清醒或專注的特定時段。',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 30),
-
-            // 動態生成的時間段列表
-            ..._timeSlots.map(_buildTimeSlot).toList(),
-
-            // 新增時段按鈕
-            OutlinedButton.icon(
-              onPressed: _addTimeSlot,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _accentColor,
-                side: BorderSide(color: _accentColor, width: 2),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 20,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Text(
+                l10n.wakeInstruction,
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
-              icon: const Icon(Icons.add),
-              label: const Text(
-                "新增時段框框",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // 儲存按鈕
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _saveData, // 呼叫 API 提交邏輯
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+              const SizedBox(height: 30),
+              ..._timeSlots.map(_buildTimeSlot),
+              OutlinedButton.icon(
+                onPressed: _addTimeSlot,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _accentColor,
+                  side: BorderSide(color: _accentColor, width: 2),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 20,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 5,
                 ),
-                icon: const Icon(Icons.cloud_upload),
-                label: const Text(
-                  "儲存並提交目標清醒時段",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                icon: const Icon(Icons.add),
+                label: Text(
+                  l10n.addWakeSlot,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saveData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 5,
+                  ),
+                  icon: const Icon(Icons.cloud_upload),
+                  label: Text(
+                    l10n.saveWakeSlots,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

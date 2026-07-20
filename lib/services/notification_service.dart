@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,9 +12,12 @@ class NotificationService {
   static final NotificationService instance = NotificationService._();
 
   static const _scheduledIdsKey = 'caffeine_reminder_notification_ids';
+  static const _historyKey = 'wakemate_notification_history';
   static const _channelId = 'wakemate_caffeine_reminders_v2';
   static const _channelName = 'WakeMate 咖啡因提醒';
   static const _notificationIcon = 'ic_notification';
+  static const _maxHistoryItems = 80;
+  static const _recentPastReminderGrace = Duration(minutes: 10);
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -53,6 +58,34 @@ class NotificationService {
       notificationDetails: _notificationDetails,
       payload: 'caffeine_recommendation_ready',
     );
+    await _appendHistory(
+      type: 'calculation_complete',
+      status: 'sent',
+      title: text.title,
+      body: text.body,
+    );
+  }
+
+  Future<bool> showTestNotification({required String languageCode}) async {
+    await initialize();
+    if (!_supported) return false;
+    await _requestNotificationPermission();
+
+    final text = _testText(languageCode);
+    await _plugin.show(
+      id: DateTime.now().millisecondsSinceEpoch % 2147483647,
+      title: text.title,
+      body: text.body,
+      notificationDetails: _notificationDetails,
+      payload: 'notification_test',
+    );
+    await _appendHistory(
+      type: 'test',
+      status: 'sent',
+      title: text.title,
+      body: text.body,
+    );
+    return true;
   }
 
   Future<int> replaceCaffeineReminders({
@@ -67,17 +100,6 @@ class NotificationService {
 
     final now = tz.TZDateTime.now(tz.local);
     final scheduledIds = <int>[];
-    final android =
-        _plugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
-    final canScheduleExact =
-        await android?.canScheduleExactNotifications() ?? false;
-    final scheduleMode =
-        canScheduleExact
-            ? AndroidScheduleMode.exactAllowWhileIdle
-            : AndroidScheduleMode.inexactAllowWhileIdle;
 
     for (var index = 0; index < recommendations.length; index++) {
       final item = recommendations[index];
@@ -91,21 +113,64 @@ class NotificationService {
       if (parsed == null) continue;
 
       final scheduledTime = tz.TZDateTime.from(parsed.toUtc(), tz.local);
-      if (!scheduledTime.isAfter(now)) continue;
-
       final id = _notificationId(scheduledTime, index);
       final text = _reminderText(languageCode, amount);
 
-      await _plugin.zonedSchedule(
+      if (!scheduledTime.isAfter(now)) {
+        final minutesLate = now.difference(scheduledTime);
+        if (minutesLate <= _recentPastReminderGrace) {
+          await _plugin.show(
+            id: id,
+            title: text.title,
+            body: text.body,
+            notificationDetails: _notificationDetails,
+            payload: 'caffeine_reminder:$timestamp',
+          );
+          await _appendHistory(
+            type: 'caffeine_reminder',
+            status: 'sent',
+            title: text.title,
+            body: text.body,
+            scheduledAt: scheduledTime,
+          );
+        } else {
+          await _appendHistory(
+            type: 'caffeine_reminder',
+            status: 'skipped_past',
+            title: text.title,
+            body: text.body,
+            scheduledAt: scheduledTime,
+          );
+        }
+        continue;
+      }
+
+      final scheduled = await _scheduleCaffeineReminder(
         id: id,
         title: text.title,
         body: text.body,
-        scheduledDate: scheduledTime,
-        notificationDetails: _notificationDetails,
-        androidScheduleMode: scheduleMode,
+        scheduledTime: scheduledTime,
         payload: 'caffeine_reminder:$timestamp',
       );
-      scheduledIds.add(id);
+
+      if (scheduled) {
+        scheduledIds.add(id);
+        await _appendHistory(
+          type: 'caffeine_reminder',
+          status: 'scheduled',
+          title: text.title,
+          body: text.body,
+          scheduledAt: scheduledTime,
+        );
+      } else {
+        await _appendHistory(
+          type: 'caffeine_reminder',
+          status: 'schedule_failed',
+          title: text.title,
+          body: text.body,
+          scheduledAt: scheduledTime,
+        );
+      }
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -114,6 +179,60 @@ class NotificationService {
       scheduledIds.map((id) => id.toString()).toList(),
     );
     return scheduledIds.length;
+  }
+
+  Future<int> pendingCaffeineReminderCount() async {
+    await initialize();
+    if (!_supported) return 0;
+
+    final pending = await _plugin.pendingNotificationRequests();
+    return pending
+        .where(
+          (request) =>
+              request.payload?.startsWith('caffeine_reminder:') ?? false,
+        )
+        .length;
+  }
+
+  Future<bool> _scheduleCaffeineReminder({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledTime,
+    required String payload,
+  }) async {
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledTime,
+        notificationDetails: _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: payload,
+      );
+      return true;
+    } catch (exactError) {
+      debugPrint('Exact caffeine reminder scheduling failed: $exactError');
+    }
+
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledTime,
+        notificationDetails: _notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: payload,
+      );
+      return true;
+    } catch (fallbackError) {
+      debugPrint(
+        'Fallback caffeine reminder scheduling failed: $fallbackError',
+      );
+      return false;
+    }
   }
 
   Future<void> _requestNotificationPermission() async {
@@ -138,6 +257,58 @@ class NotificationService {
     }
 
     await prefs.remove(_scheduledIdsKey);
+  }
+
+  Future<List<WakeMateNotificationLogEntry>> loadNotificationHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = prefs.getString(_historyKey) ?? '[]';
+
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is! List) return [];
+
+      final entries =
+          decoded
+              .whereType<Map>()
+              .map((item) => WakeMateNotificationLogEntry.fromJson(item))
+              .whereType<WakeMateNotificationLogEntry>()
+              .toList();
+
+      entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return entries;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearNotificationHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_historyKey);
+  }
+
+  Future<void> _appendHistory({
+    required String type,
+    required String status,
+    required String title,
+    required String body,
+    tz.TZDateTime? scheduledAt,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = await loadNotificationHistory();
+    final entry = WakeMateNotificationLogEntry(
+      type: type,
+      status: status,
+      title: title,
+      body: body,
+      createdAt: DateTime.now().toUtc(),
+      scheduledAt: scheduledAt?.toUtc(),
+    );
+
+    final updated = [entry, ...current].take(_maxHistoryItems).toList();
+    await prefs.setString(
+      _historyKey,
+      jsonEncode(updated.map((item) => item.toJson()).toList()),
+    );
   }
 
   int _notificationId(tz.TZDateTime time, int index) {
@@ -191,6 +362,26 @@ class NotificationService {
     }
   }
 
+  _NotificationText _testText(String languageCode) {
+    switch (languageCode) {
+      case 'id':
+        return const _NotificationText(
+          'Tes notifikasi WakeMate',
+          'Jika pesan ini muncul, notifikasi ponsel berfungsi.',
+        );
+      case 'en':
+        return const _NotificationText(
+          'WakeMate notification test',
+          'If this appears, phone notifications are working.',
+        );
+      default:
+        return const _NotificationText(
+          'WakeMate 通知測試',
+          '如果看到這則通知，代表手機通知可以正常顯示。',
+        );
+    }
+  }
+
   static const NotificationDetails _notificationDetails = NotificationDetails(
     android: AndroidNotificationDetails(
       _channelId,
@@ -210,4 +401,47 @@ class _NotificationText {
 
   final String title;
   final String body;
+}
+
+class WakeMateNotificationLogEntry {
+  const WakeMateNotificationLogEntry({
+    required this.type,
+    required this.status,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    this.scheduledAt,
+  });
+
+  final String type;
+  final String status;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final DateTime? scheduledAt;
+
+  static WakeMateNotificationLogEntry? fromJson(Map<dynamic, dynamic> json) {
+    final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '');
+    if (createdAt == null) return null;
+
+    return WakeMateNotificationLogEntry(
+      type: json['type']?.toString() ?? 'unknown',
+      status: json['status']?.toString() ?? 'unknown',
+      title: json['title']?.toString() ?? '',
+      body: json['body']?.toString() ?? '',
+      createdAt: createdAt,
+      scheduledAt: DateTime.tryParse(json['scheduledAt']?.toString() ?? ''),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'status': status,
+      'title': title,
+      'body': body,
+      'createdAt': createdAt.toUtc().toIso8601String(),
+      'scheduledAt': scheduledAt?.toUtc().toIso8601String(),
+    };
+  }
 }

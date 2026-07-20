@@ -36,12 +36,11 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // **🎯 修改：將使用者資訊儲存到 SharedPreferences (不再儲存 Name)**
-  Future<void> _saveLoginInfo(String userId, String email) async {
+  // **🎯 修改：將使用者資訊儲存到 SharedPreferences**
+  Future<void> _saveLoginInfo(String userId, String email, String name) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('userId', userId);
-    // 注意：由於登入不要求名稱，這裡不再儲存 userName
-    // 如果您後續需要顯示名稱，可能需要從 API 回傳的 data 中取得。
+    await prefs.setString('userName', name.trim().isEmpty ? '用戶' : name.trim());
     await prefs.setString('userEmail', email);
     await prefs.setBool('isLoggedIn', true);
   }
@@ -85,12 +84,14 @@ class _LoginPageState extends State<LoginPage> {
         final data = jsonDecode(res.body);
         final String? uuidFromServer =
             data['user_id']?.toString() ?? data['id']?.toString();
-        // 嘗試從回傳資料中獲取名稱 (如果後端有回傳的話)
-        final String? nameFromServer = data['name']?.toString() ?? '用戶';
+        final String nameFromServer =
+            data['name']?.toString().trim().isNotEmpty == true
+                ? data['name'].toString().trim()
+                : '用戶';
 
         if (uuidFromServer != null && uuidFromServer.isNotEmpty) {
-          // **🎯 關鍵步驟：儲存登入資訊 (不含 Name)**
-          await _saveLoginInfo(uuidFromServer, email);
+          await _saveLoginInfo(uuidFromServer, email, nameFromServer);
+          if (!mounted) return;
 
           final now = DateFormat('HH:mm').format(DateTime.now());
           final snackBar = SnackBar(
@@ -125,7 +126,7 @@ class _LoginPageState extends State<LoginPage> {
                   (context) => HomePage(
                     userId: uuidFromServer,
                     // 將從伺服器取得的名稱或預設值傳入
-                    userName: nameFromServer ?? '用戶',
+                    userName: nameFromServer,
                     email: emailController.text.trim(),
                   ),
             ),
@@ -169,7 +170,9 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 

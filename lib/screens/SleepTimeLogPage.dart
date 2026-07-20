@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
-// ✅ 修正 #1：導入 SharedPreferences (移除註解)
+import 'package:my_app/api/day_record_replacement.dart';
+import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActualSleepTimePage extends StatefulWidget {
@@ -20,16 +23,14 @@ class ActualSleepTimePage extends StatefulWidget {
 }
 
 class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
-  // 控制器
   final TextEditingController sleepStartController = TextEditingController();
   final TextEditingController sleepEndController = TextEditingController();
 
   final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
-
-  // 🎨 顏色變數 (套用 HomePage 的風格)
-  final Color _primaryColor = const Color(0xFF4B6B7A); // 深灰藍
-  final Color _accentColor = const Color(0xFF8BB9A1); // 柔綠藍
-  final Color _bgLight = const Color(0xFFF9F9F7); // 米白
+  final Color _primaryColor = const Color(0xFF4B6B7A);
+  final Color _accentColor = const Color(0xFF8BB9A1);
+  final Color _bgLight = const Color(0xFFF9F9F7);
+  static const int _maxSleepDurationHours = 48;
 
   @override
   void initState() {
@@ -38,17 +39,13 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   }
 
   void _loadInitialTimes() {
-    final now = widget.selectedDate;
-
-    // 預設「開始睡覺時間」為前一晚的 23:00
-    sleepStartController.text = DateFormat(
-      'yyyy-MM-dd HH:mm',
-    ).format(DateTime(now.year, now.month, now.day - 1, 23, 0));
-
-    // 預設「結束睡眠時間」為今天的 07:00
-    sleepEndController.text = DateFormat(
-      'yyyy-MM-dd HH:mm',
-    ).format(DateTime(now.year, now.month, now.day, 7, 0));
+    final selectedDate = widget.selectedDate;
+    sleepStartController.text = DateFormat('yyyy-MM-dd HH:mm').format(
+      DateTime(selectedDate.year, selectedDate.month, selectedDate.day - 1, 23),
+    );
+    sleepEndController.text = DateFormat('yyyy-MM-dd HH:mm').format(
+      DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 7),
+    );
   }
 
   @override
@@ -59,45 +56,50 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   }
 
   void _showSnackBar(String message, {Color color = Colors.red}) {
-    // (您的 SnackBar 程式碼保持不變)
-    final snackBar = SnackBar(
-      content: Text(
-        message,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
-  /// 彈出日期+時間選擇器
-  Future<void> _pickDateTime(TextEditingController controller) async {
-    // (您的 _pickDateTime 程式碼保持不變)
-    DateTime initialDateTime;
+  DateTime? _parseInputDateTime(String value) {
     try {
-      initialDateTime = DateFormat('yyyy-MM-dd HH:mm').parse(controller.text);
-    } catch (e) {
-      initialDateTime = DateTime.now();
+      return parseTaipeiInput(value);
+    } catch (_) {
+      return null;
     }
+  }
 
-    DateTime? pickedDate = await showDatePicker(
+  String _formatToApiTimestamp(String value) => taipeiInputToUtcIso(value);
+
+  Future<void> _pickDateTime(TextEditingController controller) async {
+    final initialDateTime =
+        _parseInputDateTime(controller.text) ?? widget.selectedDate;
+
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDateTime,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (pickedDate == null) return;
+    if (pickedDate == null || !mounted) return;
 
-    TimeOfDay? pickedTime = await showTimePicker(
+    final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDateTime),
     );
     if (pickedTime == null) return;
 
-    DateTime finalDateTime = DateTime(
+    final finalDateTime = DateTime(
       pickedDate.year,
       pickedDate.month,
       pickedDate.day,
@@ -108,203 +110,175 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
     controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
   }
 
-  /// 將 yyyy-MM-dd HH:mm 轉成 ISO8601
-  String formatToISO8601(String time) {
-    // (您的 formatToISO8601 程式碼保持不變)
-    try {
-      // 假設使用者輸入的是當地時間，我們將其轉為 UTC 提交給 API
-      final dt = DateFormat('yyyy-MM-dd HH:mm').parse(time, true);
-      return dt.toIso8601String();
-    } catch (e) {
-      return DateTime.now().toIso8601String();
-    }
-  }
-
   Future<void> _submitData() async {
-    final uuid = widget.userId;
+    final l10n = AppLocalizations.of(context)!;
     final sleepStartTimeText = sleepStartController.text.trim();
     final sleepEndTimeText = sleepEndController.text.trim();
 
-    if (sleepStartTimeText.isEmpty || sleepEndTimeText.isEmpty) {
-      _showSnackBar("請選擇睡眠的開始時間與結束時間。");
+    final dtStart = _parseInputDateTime(sleepStartTimeText);
+    final dtEnd = _parseInputDateTime(sleepEndTimeText);
+
+    if (dtStart == null || dtEnd == null) {
+      _showSnackBar(l10n.invalidDateTimeFormat);
       return;
     }
 
-    // 驗證時間順序
-    late DateTime dtStart, dtEnd;
-    try {
-      dtStart = DateFormat('yyyy-MM-dd HH:mm').parse(sleepStartTimeText);
-      dtEnd = DateFormat('yyyy-MM-dd HH:mm').parse(sleepEndTimeText);
-      if (dtEnd.isBefore(dtStart)) {
-        _showSnackBar("結束時間不能早於開始時間，請檢查日期和時間。", color: Colors.red);
-        return;
-      }
-      if (dtEnd.difference(dtStart).inDays > 2) {
-        _showSnackBar("睡眠時間過長 (超過48小時)，請確認。", color: Colors.red);
-        return;
-      }
-    } catch (e) {
-      _showSnackBar("時間格式錯誤，請重新選擇。", color: Colors.red);
+    if (!dtEnd.isAfter(dtStart)) {
+      _showSnackBar(l10n.endAfterStart);
       return;
     }
 
-    // 轉換為 ISO8601
-    final sleepStartTimeISO = formatToISO8601(sleepStartTimeText);
-    final sleepEndTimeISO = formatToISO8601(sleepEndTimeText);
+    if (dtEnd.difference(dtStart).inMinutes > _maxSleepDurationHours * 60) {
+      _showSnackBar(l10n.sleepTooLong);
+      return;
+    }
 
-    final headers = {'Content-Type': 'application/json'};
-
+    var cleanupFailed = false;
     try {
-      final sleepRes = await http.post(
-        Uri.parse('$baseUrl/users_sleep/'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': uuid,
-          'sleep_start_time': sleepStartTimeISO,
-          'sleep_end_time': sleepEndTimeISO,
-        }),
+      await deleteExistingDayRecords(
+        baseUrl: baseUrl,
+        endpoint: 'users_sleep',
+        userId: widget.userId,
+        selectedDate: dtEnd,
+        dateField: 'sleep_end_time',
       );
+    } catch (_) {
+      cleanupFailed = true;
+    }
 
-      if (sleepRes.statusCode == 200) {
-        // ✅ 修正 #2：呼叫新的成功處理函數
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/users_sleep/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'user_id': widget.userId,
+              'sleep_start_time': _formatToApiTimestamp(sleepStartTimeText),
+              'sleep_end_time': _formatToApiTimestamp(sleepEndTimeText),
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
         await _handleSuccessfulSave(dtStart, dtEnd);
-
-        if (mounted) {
-          // 提交成功後關閉頁面
-          Navigator.of(context).pop();
+        if (cleanupFailed) {
+          _showSnackBar(l10n.deleteOldRecordsWarning, color: Colors.orange);
         }
+        if (mounted) Navigator.of(context).pop(true);
       } else {
-        String sleepBody = sleepRes.body.isNotEmpty ? sleepRes.body : "無回應內容";
-        _showSnackBar("睡眠紀錄儲存失敗：${sleepRes.statusCode}\n回應：$sleepBody");
+        final body =
+            response.body.isEmpty ? '' : '\n${utf8.decode(response.bodyBytes)}';
+        _showSnackBar('${l10n.sleepSaveFailed}: ${response.statusCode}$body');
       }
     } catch (e) {
-      _showSnackBar("發生錯誤：$e");
+      _showSnackBar('${l10n.networkError}: $e');
     }
   }
 
-  // ✅ 修正 #3：新函數，取代 _calculateAndShowSleepDuration
-  // 負責計算、儲存到 SharedPreferences，並顯示 SnackBar
   Future<void> _handleSuccessfulSave(DateTime dtStart, DateTime dtEnd) async {
-    try {
-      final duration = dtEnd.difference(dtStart);
+    final l10n = AppLocalizations.of(context)!;
+    final duration = dtEnd.difference(dtStart);
+    final totalHours = duration.inMinutes / 60.0;
+    final prefs = await SharedPreferences.getInstance();
+    final dateKey = DateFormat('yyyy-MM-dd').format(dtEnd);
+    await prefs.setDouble('sleep_$dateKey', totalHours);
 
-      // 1. 計算總小時 (double)
-      final double totalHours = duration.inMinutes / 60.0;
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    _showSnackBar(
+      '${l10n.sleepSaveSuccess}\n${l10n.duration}: $hours ${l10n.hours} $minutes ${l10n.minutes}',
+      color: _accentColor,
+    );
+  }
 
-      // 2. 準備 SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
+  Widget _buildDateTimeField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
 
-      // 3. 產生 Key (以"結束日期"為準，這與 HomePage 邏輯一致)
-      final String dateKey = DateFormat('yyyy-MM-dd').format(dtEnd);
-      final String prefsKey = 'sleep_$dateKey';
-
-      // 4. 儲存總時數
-      // 附註：睡眠通常是覆蓋，而不是累加
-      await prefs.setDouble(prefsKey, totalHours);
-      print('[$prefsKey] 儲存成功：$totalHours 小時'); // 除錯用
-
-      // 5. 顯示成功訊息 (原本的邏輯)
-      final hours = duration.inHours;
-      final minutes = duration.inMinutes % 60;
-      _showSnackBar(
-        "睡眠紀錄儲存成功！\n😴 總時長：${hours}小時 ${minutes}分鐘",
-        color: _accentColor, // ⭐️ 使用風格顏色
-      );
-    } catch (e) {
-      _showSnackBar("資料格式錯誤，無法計算或儲存時長。", color: Colors.orange);
-    }
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.datetime,
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: l10n.dateTimeHelper,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        prefixIcon: Icon(icon, color: _primaryColor),
+        suffixIcon: IconButton(
+          tooltip: l10n.chooseDateTime,
+          icon: const Icon(Icons.calendar_month_outlined),
+          onPressed: () => _pickDateTime(controller),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🎨 套用 HomePage 的風格
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      backgroundColor: _bgLight, // ⭐️
+      backgroundColor: _bgLight,
       appBar: AppBar(
         title: Text(
-          '新增實際睡眠時間',
-          style: TextStyle(
-            color: _primaryColor,
-            fontWeight: FontWeight.bold,
-          ), // ⭐️
+          l10n.sleepPageTitle,
+          style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white.withOpacity(0.9), // ⭐️
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
         elevation: 1,
         shadowColor: Colors.black12,
-        iconTheme: IconThemeData(color: _primaryColor), // ⭐️
+        iconTheme: IconThemeData(color: _primaryColor),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const Text(
-              '請輸入您實際開始睡覺的時間與結束睡眠的時間，以記錄完整的睡眠週期。',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 30),
-
-            // 1. 開始睡覺時間
-            TextField(
-              controller: sleepStartController,
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: '開始睡覺時間（點擊選擇）',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                prefixIcon: Icon(
-                  Icons.bedtime_outlined,
-                  color: _primaryColor,
-                ), // ⭐️
-                hintText: '例如：2025-11-05 23:00',
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Text(
+                l10n.sleepInstruction,
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
-              onTap: () => _pickDateTime(sleepStartController),
-            ),
-
-            const SizedBox(height: 16),
-
-            // 2. 結束睡眠時間
-            TextField(
-              controller: sleepEndController,
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: '結束睡眠時間（點擊選擇）',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                prefixIcon: Icon(
-                  Icons.access_time_rounded, // ⭐️
-                  color: _primaryColor,
-                ),
-                hintText: '例如：2025-11-06 07:00',
+              const SizedBox(height: 30),
+              _buildDateTimeField(
+                controller: sleepStartController,
+                label: l10n.sleepStart,
+                icon: Icons.bedtime_outlined,
               ),
-              onTap: () => _pickDateTime(sleepEndController),
-            ),
-
-            const SizedBox(height: 40),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _submitData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryColor, // ⭐️
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 16),
+              _buildDateTimeField(
+                controller: sleepEndController,
+                label: l10n.sleepEnd,
+                icon: Icons.access_time_rounded,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _submitData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 5,
                   ),
-                  elevation: 5,
-                ),
-                icon: const Icon(Icons.save),
-                label: const Text(
-                  "儲存睡眠週期",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  icon: const Icon(Icons.save),
+                  label: Text(
+                    l10n.saveSleep,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

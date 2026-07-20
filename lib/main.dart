@@ -28,6 +28,7 @@ class MyApp extends StatelessWidget {
       builder: (context, provider, child) {
         return MaterialApp(
           title: 'WakeMate',
+          debugShowCheckedModeBanner: false,
           theme: ThemeData(
             primaryColor: const Color(0xFF1F3D5B),
             colorScheme: ColorScheme.fromSwatch(

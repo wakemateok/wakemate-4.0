@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/screens/LanguageSettingPage.dart';
 import 'package:my_app/screens/LoginPage.dart';
 import 'package:my_app/screens/alertness_test.dart';
+import 'package:my_app/screens/notification_center_page.dart';
 import 'package:my_app/screens/personalSettingsPage.dart';
+import 'package:my_app/screens/questionnaire_prompt_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:my_app/screens/LanguageSettingPage.dart';
 
 class CustomDrawer extends StatelessWidget {
   final String userId;
   final String userName;
   final String userEmail;
+  final VoidCallback? onDailyQuestionnaireTap;
+  final bool showDailyQuestionnaireBadge;
 
   const CustomDrawer({
     super.key,
     required this.userId,
     required this.userName,
     required this.userEmail,
+    this.onDailyQuestionnaireTap,
+    this.showDailyQuestionnaireBadge = false,
   });
 
   final Color _primaryColor = const Color(0xFF1F3D5B);
@@ -27,6 +34,7 @@ class CustomDrawer extends StatelessWidget {
     required String title,
     required VoidCallback onTap,
     bool isLogout = false,
+    bool showBadge = false,
   }) {
     return ListTile(
       leading: Icon(
@@ -42,13 +50,30 @@ class CustomDrawer extends StatelessWidget {
           fontWeight: isLogout ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
+      trailing:
+          showBadge
+              ? Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+              )
+              : null,
       onTap: onTap,
     );
   }
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // 一次清掉全部登入資訊
+    final hasSeenBaselineQuestionnaire =
+        prefs.getBool(baselineQuestionnairePromptSeenKey) ?? false;
+
+    await prefs.clear();
+    if (hasSeenBaselineQuestionnaire) {
+      await prefs.setBool(baselineQuestionnairePromptSeenKey, true);
+    }
 
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(
@@ -61,13 +86,16 @@ class CustomDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final displayName =
+        userName.trim().isEmpty ? l10n.userFallback : userName.trim();
+
     return Drawer(
       child: SafeArea(
         child: Container(
           color: _lightColor,
           child: Column(
             children: [
-              // Header 區塊
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -76,7 +104,10 @@ class CustomDrawer extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [_primaryColor, _primaryColor.withOpacity(0.85)],
+                    colors: [
+                      _primaryColor,
+                      _primaryColor.withValues(alpha: 0.85),
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -85,7 +116,7 @@ class CustomDrawer extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _primaryColor.withOpacity(0.4),
+                      color: _primaryColor.withValues(alpha: 0.4),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -108,7 +139,7 @@ class CustomDrawer extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            userName,
+                            displayName,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -131,17 +162,26 @@ class CustomDrawer extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // 中間內容：滾動列表
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.zero,
                   children: [
                     const SizedBox(height: 8),
+                    if (onDailyQuestionnaireTap != null)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.assignment_turned_in_outlined,
+                        title: l10n.dailyQuestionnaire,
+                        showBadge: showDailyQuestionnaireBadge,
+                        onTap: () {
+                          Navigator.pop(context);
+                          onDailyQuestionnaireTap?.call();
+                        },
+                      ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.settings_outlined,
-                      title: "個人身體數據",
+                      title: l10n.personalSettings,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -155,7 +195,7 @@ class CustomDrawer extends StatelessWidget {
                     _buildDrawerItem(
                       context,
                       icon: Icons.bolt_outlined,
-                      title: "清醒度測試",
+                      title: l10n.alertnessTest,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -169,8 +209,29 @@ class CustomDrawer extends StatelessWidget {
                     ),
                     _buildDrawerItem(
                       context,
+                      icon: Icons.notifications_active_outlined,
+                      title:
+                          Localizations.localeOf(context).languageCode == 'en'
+                              ? 'Notifications'
+                              : Localizations.localeOf(context).languageCode ==
+                                  'id'
+                              ? 'Notifikasi'
+                              : '通知確認',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => const NotificationCenterPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      context,
                       icon: Icons.language_outlined,
-                      title: "語言設定",
+                      title: l10n.languageSettingsTitle,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -183,33 +244,31 @@ class CustomDrawer extends StatelessWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        vertical: 10.0,
-                        horizontal: 20.0,
+                        vertical: 10,
+                        horizontal: 20,
                       ),
                       child: Divider(
                         height: 1,
                         thickness: 1,
-                        color: _primaryColor.withOpacity(0.15),
+                        color: _primaryColor.withValues(alpha: 0.15),
                       ),
                     ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.logout_rounded,
-                      title: "登出",
+                      title: l10n.logout,
                       isLogout: true,
                       onTap: () => _logout(context),
                     ),
                   ],
                 ),
               ),
-
-              // 底部版本資訊
               Padding(
-                padding: const EdgeInsets.only(bottom: 15.0, top: 10.0),
+                padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                  'WakeMate v1.0.0 © 2024',
+                  'WakeMate v1.0.0',
                   style: TextStyle(
-                    color: _primaryColor.withOpacity(0.5),
+                    color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,
                   ),
                 ),

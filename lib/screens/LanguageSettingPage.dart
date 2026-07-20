@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:my_app/providers/locale_provider.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/providers/locale_provider.dart';
+import 'package:provider/provider.dart';
 
 class LanguageSettingPage extends StatelessWidget {
   const LanguageSettingPage({super.key});
@@ -14,9 +14,7 @@ class LanguageSettingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final localeProvider = context.watch<LocaleProvider>();
     final l10n = AppLocalizations.of(context)!;
-
-    // 從 Provider 取得目前語言代碼（確保 groupValue 能更新）
-    final String selectedLanguage = localeProvider.localeCode;
+    final selectedLanguage = localeProvider.localeCode;
 
     return Scaffold(
       appBar: AppBar(
@@ -30,12 +28,12 @@ class LanguageSettingPage extends StatelessWidget {
       ),
       backgroundColor: _lightColor,
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         children: [
           Text(
             l10n.selectYourLanguage,
             style: TextStyle(
-              color: _primaryColor.withOpacity(0.7),
+              color: _primaryColor.withValues(alpha: 0.7),
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -43,7 +41,7 @@ class LanguageSettingPage extends StatelessWidget {
           const SizedBox(height: 10),
           Card(
             elevation: 4,
-            shadowColor: Colors.black.withOpacity(0.1),
+            shadowColor: Colors.black.withValues(alpha: 0.1),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(15),
             ),
@@ -51,14 +49,7 @@ class LanguageSettingPage extends StatelessWidget {
               children: [
                 _buildLanguageTile(
                   context,
-                  'English (US)',
-                  'en_US',
-                  selectedLanguage,
-                ),
-                const Divider(height: 1, indent: 20, endIndent: 20),
-                _buildLanguageTile(
-                  context,
-                  '繁體中文 (台灣)',
+                  '繁體中文（台灣）',
                   'zh_TW',
                   selectedLanguage,
                 ),
@@ -70,7 +61,14 @@ class LanguageSettingPage extends StatelessWidget {
                   selectedLanguage,
                 ),
                 const Divider(height: 1, indent: 20, endIndent: 20),
-                _buildLanguageTile(context, '中文', 'zh', selectedLanguage),
+                _buildLanguageTile(
+                  context,
+                  'English (US)',
+                  'en_US',
+                  selectedLanguage,
+                ),
+                const Divider(height: 1, indent: 20, endIndent: 20),
+                _buildLanguageTile(context, '简体中文', 'zh', selectedLanguage),
               ],
             ),
           ),

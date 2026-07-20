@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/ntu_hospital_caffeine_catalog.dart';
@@ -14,24 +16,18 @@ enum _MeasureType { volume, serving, manual }
 class _DrinkType {
   const _DrinkType({
     required this.id,
-    required this.label,
-    required this.subtitle,
     required this.icon,
     required this.measureType,
     this.mgPerMl,
     this.mgPerServing,
-    this.servingUnit = '份',
     this.supportsStrength = false,
   });
 
   final String id;
-  final String label;
-  final String subtitle;
   final IconData icon;
   final _MeasureType measureType;
   final double? mgPerMl;
   final int? mgPerServing;
-  final String servingUnit;
   final bool supportsStrength;
 }
 
@@ -51,10 +47,9 @@ class _ServingOption {
 }
 
 class _StrengthOption {
-  const _StrengthOption(this.id, this.label, this.multiplier);
+  const _StrengthOption(this.id, this.multiplier);
 
   final String id;
-  final String label;
   final double multiplier;
 }
 
@@ -74,18 +69,15 @@ class CaffeineLogPage extends StatefulWidget {
 
 class _CaffeineLogPageState extends State<CaffeineLogPage> {
   final TextEditingController caffeineController = TextEditingController();
-  final TextEditingController drinkNameController = TextEditingController(
-    text: '其他飲品',
-  );
+  final TextEditingController drinkNameController = TextEditingController();
   final TextEditingController takingTimeController = TextEditingController();
 
   final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
+  static const int _maxSingleCaffeineMg = 500;
 
   static const List<_DrinkType> _drinkTypes = [
     _DrinkType(
       id: 'brewed_coffee',
-      label: '現煮咖啡',
-      subtitle: '約 0.50 mg/ml',
       icon: Icons.local_cafe_outlined,
       measureType: _MeasureType.volume,
       mgPerMl: 0.50,
@@ -93,8 +85,6 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     ),
     _DrinkType(
       id: 'instant_coffee',
-      label: '即溶咖啡',
-      subtitle: '約 0.30 mg/ml',
       icon: Icons.coffee_maker_outlined,
       measureType: _MeasureType.volume,
       mgPerMl: 0.30,
@@ -102,67 +92,48 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     ),
     _DrinkType(
       id: 'capsule_espresso',
-      label: '膠囊咖啡',
-      subtitle: '濃縮型約 70 mg/顆',
       icon: Icons.coffee_outlined,
       measureType: _MeasureType.serving,
       mgPerServing: 70,
-      servingUnit: '顆',
     ),
     _DrinkType(
       id: 'capsule_lungo',
-      label: '膠囊大杯',
-      subtitle: 'lungo 約 95 mg/顆',
       icon: Icons.coffee_outlined,
       measureType: _MeasureType.serving,
       mgPerServing: 95,
-      servingUnit: '顆',
     ),
     _DrinkType(
       id: 'espresso',
-      label: 'Espresso',
-      subtitle: '約 70 mg/shot',
       icon: Icons.local_cafe,
       measureType: _MeasureType.serving,
       mgPerServing: 70,
-      servingUnit: 'shot',
     ),
     _DrinkType(
       id: 'black_tea',
-      label: '紅茶',
-      subtitle: '約 0.20 mg/ml',
       icon: Icons.emoji_food_beverage_outlined,
       measureType: _MeasureType.volume,
       mgPerMl: 0.20,
     ),
     _DrinkType(
       id: 'green_tea',
-      label: '綠茶',
-      subtitle: '約 0.15 mg/ml',
       icon: Icons.emoji_food_beverage,
       measureType: _MeasureType.volume,
       mgPerMl: 0.15,
     ),
     _DrinkType(
       id: 'energy_drink',
-      label: '能量飲料',
-      subtitle: '約 0.32 mg/ml',
       icon: Icons.bolt_outlined,
       measureType: _MeasureType.volume,
       mgPerMl: 0.32,
     ),
     _DrinkType(
       id: 'caffeinated_soda',
-      label: '氣泡飲料',
-      subtitle: '約 0.10 mg/ml',
       icon: Icons.local_drink_outlined,
       measureType: _MeasureType.volume,
       mgPerMl: 0.10,
     ),
     _DrinkType(
       id: 'other',
-      label: '其他',
-      subtitle: '自行輸入 mg',
       icon: Icons.edit_note_outlined,
       measureType: _MeasureType.manual,
     ),
@@ -182,9 +153,9 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   ];
 
   static const List<_StrengthOption> _strengthOptions = [
-    _StrengthOption('light', '淡', 0.8),
-    _StrengthOption('normal', '正常', 1.0),
-    _StrengthOption('strong', '濃', 1.2),
+    _StrengthOption('light', 0.8),
+    _StrengthOption('normal', 1.0),
+    _StrengthOption('strong', 1.2),
   ];
 
   String _selectedDrinkId = 'brewed_coffee';
@@ -199,12 +170,13 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   @override
   void initState() {
     super.initState();
+    final now = taipeiNow();
     final initialTime = DateTime(
       widget.selectedDate.year,
       widget.selectedDate.month,
       widget.selectedDate.day,
-      DateTime.now().hour,
-      DateTime.now().minute,
+      now.hour,
+      now.minute,
     );
     takingTimeController.text = DateFormat(
       'yyyy-MM-dd HH:mm',
@@ -244,6 +216,82 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
           .where((item) => item.brand == _selectedCatalogBrand)
           .toList();
 
+  bool get _isZh => AppLocalizations.of(context)!.localeName.startsWith('zh');
+  bool get _isId => AppLocalizations.of(context)!.localeName.startsWith('id');
+
+  String get _caffeineOutOfRangeMessage {
+    if (_isId) {
+      return 'Jumlah kafein per catatan harus 1-$_maxSingleCaffeineMg mg. Jika memang lebih tinggi, pisahkan menjadi beberapa catatan atau periksa kembali input.';
+    }
+    if (_isZh) {
+      return '單筆咖啡因含量需介於 1-$_maxSingleCaffeineMg mg；若真的超過，請拆成多筆或確認是否輸入錯誤。';
+    }
+    return 'Caffeine amount must be 1-$_maxSingleCaffeineMg mg per entry. If it is higher, split it into multiple records or check the input.';
+  }
+
+  String _drinkLabel(_DrinkType drink) {
+    if (_isId) {
+      return switch (drink.id) {
+        'brewed_coffee' => 'Kopi seduh',
+        'instant_coffee' => 'Kopi instan',
+        'capsule_espresso' => 'Kapsul espresso',
+        'capsule_lungo' => 'Kapsul lungo',
+        'espresso' => 'Espresso',
+        'black_tea' => 'Teh hitam',
+        'green_tea' => 'Teh hijau',
+        'energy_drink' => 'Minuman energi',
+        'caffeinated_soda' => 'Soda berkafein',
+        _ => AppLocalizations.of(context)!.otherDrink,
+      };
+    }
+
+    if (_isZh) {
+      return switch (drink.id) {
+        'brewed_coffee' => '現煮咖啡',
+        'instant_coffee' => '即溶咖啡',
+        'capsule_espresso' => '膠囊咖啡 Espresso',
+        'capsule_lungo' => '膠囊咖啡 Lungo',
+        'espresso' => 'Espresso',
+        'black_tea' => '紅茶',
+        'green_tea' => '綠茶',
+        'energy_drink' => '能量飲料',
+        'caffeinated_soda' => '含咖啡因氣泡飲',
+        _ => AppLocalizations.of(context)!.otherDrink,
+      };
+    }
+
+    return switch (drink.id) {
+      'brewed_coffee' => 'Brewed coffee',
+      'instant_coffee' => 'Instant coffee',
+      'capsule_espresso' => 'Capsule espresso',
+      'capsule_lungo' => 'Capsule lungo',
+      'espresso' => 'Espresso',
+      'black_tea' => 'Black tea',
+      'green_tea' => 'Green tea',
+      'energy_drink' => 'Energy drink',
+      'caffeinated_soda' => 'Caffeinated soda',
+      _ => AppLocalizations.of(context)!.otherDrink,
+    };
+  }
+
+  String _servingUnit(_DrinkType drink) {
+    if (drink.id.startsWith('capsule')) {
+      if (_isId) return 'kapsul';
+      if (_isZh) return '顆';
+      return 'capsule';
+    }
+    return 'shot';
+  }
+
+  String _strengthLabel(_StrengthOption option) {
+    final l10n = AppLocalizations.of(context)!;
+    return switch (option.id) {
+      'light' => l10n.light,
+      'strong' => l10n.strong,
+      _ => l10n.normal,
+    };
+  }
+
   int get _estimatedCaffeineAmount {
     if (_entryMode == _CaffeineEntryMode.catalog) {
       return _selectedCatalogItem.caffeineMg;
@@ -268,92 +316,94 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     switch (drink.measureType) {
       case _MeasureType.volume:
         final strengthText =
-            drink.supportsStrength ? '，${_selectedStrength.label}' : '';
+            drink.supportsStrength
+                ? ' ${_strengthLabel(_selectedStrength)}'
+                : '';
         return '${_selectedVolume.label}$strengthText';
       case _MeasureType.serving:
-        return '${_selectedServing.label} ${drink.servingUnit}';
+        return '${_selectedServing.label} ${_servingUnit(drink)}';
       case _MeasureType.manual:
-        return '自行輸入';
+        return AppLocalizations.of(context)!.manualInput;
     }
   }
 
   String get _drinkNameForSubmit {
+    final l10n = AppLocalizations.of(context)!;
     if (_entryMode == _CaffeineEntryMode.catalog) {
-      return _selectedCatalogItem.submitName;
+      final item = _selectedCatalogItem;
+      final estimateTag = item.isEstimate ? ' (${l10n.manualEstimate})' : '';
+      return '${item.brand} ${item.productName} ${item.sizeLabel}$estimateTag';
     }
 
     final drink = _selectedDrink;
     if (drink.measureType == _MeasureType.manual) {
       final name = drinkNameController.text.trim();
-      return name.isEmpty ? '其他飲品' : name;
+      return name.isEmpty ? l10n.otherDrink : name;
     }
 
-    final uncertainty = _isUncertain ? '（不確定）' : '';
-    return '${drink.label} $_amountDescription$uncertainty';
+    final uncertainty = _isUncertain ? ' (${l10n.uncertainAmount})' : '';
+    return '${_drinkLabel(drink)} $_amountDescription$uncertainty';
   }
 
   void _syncEstimatedAmountToController() {
-    if (_entryMode == _CaffeineEntryMode.catalog) {
-      caffeineController.text = _estimatedCaffeineAmount.toString();
-      return;
-    }
-
-    if (_selectedDrink.measureType != _MeasureType.manual) {
+    if (_entryMode == _CaffeineEntryMode.catalog ||
+        _selectedDrink.measureType != _MeasureType.manual) {
       caffeineController.text = _estimatedCaffeineAmount.toString();
     }
   }
 
   void _showSnackBar(String message, {Color color = Colors.red}) {
-    final snackBar = SnackBar(
-      content: Row(
-        children: [
-          Icon(
-            color == Colors.green || color == const Color(0xFF8BB9A1)
-                ? Icons.check_circle_outline
-                : Icons.error_outline,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              color == Colors.green || color == const Color(0xFF8BB9A1)
+                  ? Icons.check_circle_outline
+                  : Icons.error_outline,
+              color: Colors.white,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
     );
-    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 
   Future<void> _pickDateTime(TextEditingController controller) async {
     DateTime initialDateTime;
     try {
-      initialDateTime = DateFormat('yyyy-MM-dd HH:mm').parse(controller.text);
-    } catch (e) {
-      initialDateTime = DateTime.now();
+      initialDateTime = parseTaipeiInput(controller.text);
+    } catch (_) {
+      initialDateTime = taipeiNow();
     }
 
-    DateTime? pickedDate = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDateTime,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
-    if (pickedDate == null) return;
-    if (!mounted) return;
+    if (pickedDate == null || !mounted) return;
 
-    TimeOfDay? pickedTime = await showTimePicker(
+    final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDateTime),
     );
     if (pickedTime == null) return;
 
-    DateTime finalDateTime = DateTime(
+    final finalDateTime = DateTime(
       pickedDate.year,
       pickedDate.month,
       pickedDate.day,
@@ -364,81 +414,76 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
   }
 
-  String formatToISO8601(String time) {
-    try {
-      final dt = DateFormat('yyyy-MM-dd HH:mm').parse(time);
-      return dt.toIso8601String();
-    } catch (e) {
-      return DateTime.now().toIso8601String();
-    }
-  }
+  String formatToISO8601(String time) => taipeiInputToUtcIso(time);
 
   Future<void> _saveToLocal(
     double caffeineAmount,
     String takingTimeString,
   ) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final DateTime takingDateTime = DateFormat(
-        'yyyy-MM-dd HH:mm',
-      ).parse(takingTimeString);
-      final String dateKey = DateFormat('yyyy-MM-dd').format(takingDateTime);
-      final String prefsKey = 'caffeine_$dateKey';
+    final prefs = await SharedPreferences.getInstance();
+    final takingDateTime = parseTaipeiInput(takingTimeString);
+    final dateKey = DateFormat('yyyy-MM-dd').format(takingDateTime);
+    final prefsKey = 'caffeine_$dateKey';
 
-      double currentTotal = prefs.getDouble(prefsKey) ?? 0;
-      double newTotal = currentTotal + caffeineAmount;
-
-      await prefs.setDouble(prefsKey, newTotal);
-      debugPrint('[$prefsKey] 儲存成功：$newTotal mg');
-    } catch (e) {
-      debugPrint('儲存到 SharedPreferences 失敗：$e');
-    }
+    final currentTotal = prefs.getDouble(prefsKey) ?? 0;
+    await prefs.setDouble(prefsKey, currentTotal + caffeineAmount);
   }
 
   Future<void> _submitData() async {
-    final uuid = widget.userId;
+    final l10n = AppLocalizations.of(context)!;
     final takingTime = takingTimeController.text.trim();
     final caffeineAmount = _estimatedCaffeineAmount;
     final drinkName = _drinkNameForSubmit;
 
     if (takingTime.isEmpty) {
-      _showSnackBar('請選擇飲用時間');
+      _showSnackBar(l10n.enterDrinkingTime);
+      return;
+    }
+
+    try {
+      parseTaipeiInput(takingTime);
+    } catch (_) {
+      _showSnackBar(l10n.invalidDateTimeFormat);
       return;
     }
 
     if (caffeineAmount <= 0) {
-      _showSnackBar('咖啡因含量必須是有效的正整數。');
+      _showSnackBar(l10n.enterPositiveCaffeine);
       return;
     }
 
-    final headers = {'Content-Type': 'application/json'};
+    if (caffeineAmount > _maxSingleCaffeineMg) {
+      _showSnackBar(_caffeineOutOfRangeMessage);
+      return;
+    }
 
     try {
-      final intakeRes = await http.post(
-        Uri.parse('$baseUrl/users_intake/'),
-        headers: headers,
-        body: jsonEncode({
-          'user_id': uuid,
-          'caffeine_amount': caffeineAmount,
-          'drink_name': drinkName,
-          'taking_timestamp': formatToISO8601(takingTime),
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/users_intake/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'user_id': widget.userId,
+              'caffeine_amount': caffeineAmount,
+              'drink_name': drinkName,
+              'taking_timestamp': formatToISO8601(takingTime),
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
 
-      if (intakeRes.statusCode == 200) {
+      if (response.statusCode == 200) {
         await _saveToLocal(caffeineAmount.toDouble(), takingTime);
-
-        _showSnackBar('咖啡因攝取記錄儲存成功！', color: const Color(0xFF8BB9A1));
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
+        _showSnackBar(l10n.caffeineSaveSuccess, color: const Color(0xFF8BB9A1));
+        if (mounted) Navigator.of(context).pop(true);
       } else {
-        String intakeBody =
-            intakeRes.body.isNotEmpty ? intakeRes.body : '無回應內容';
-        _showSnackBar('咖啡因記錄儲存失敗：${intakeRes.statusCode}\n回應：$intakeBody');
+        final body =
+            response.body.isEmpty ? '' : '\n${utf8.decode(response.bodyBytes)}';
+        _showSnackBar(
+          '${l10n.caffeineSaveFailed}: ${response.statusCode}$body',
+        );
       }
     } catch (e) {
-      _showSnackBar('發生錯誤：$e');
+      _showSnackBar('${l10n.networkError}: $e');
     }
   }
 
@@ -453,17 +498,18 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildEntryModeSelector(Color primaryColor) {
+    final l10n = AppLocalizations.of(context)!;
     return SegmentedButton<_CaffeineEntryMode>(
-      segments: const [
+      segments: [
         ButtonSegment(
           value: _CaffeineEntryMode.catalog,
-          icon: Icon(Icons.storefront_outlined),
-          label: Text('常見商品'),
+          icon: const Icon(Icons.storefront_outlined),
+          label: Text(l10n.productCatalog),
         ),
         ButtonSegment(
           value: _CaffeineEntryMode.estimator,
-          icon: Icon(Icons.tune_outlined),
-          label: Text('手動估算'),
+          icon: const Icon(Icons.tune_outlined),
+          label: Text(l10n.manualEstimate),
         ),
       ],
       selected: {_entryMode},
@@ -485,12 +531,13 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildCatalogSelector(Color primaryColor, Color accentColor) {
+    final l10n = AppLocalizations.of(context)!;
     final selectedItem = _selectedCatalogItem;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('1. 選擇品牌'),
+        _buildSectionTitle('1. ${l10n.chooseStore}'),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           initialValue: _selectedCatalogBrand,
@@ -519,7 +566,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
           },
         ),
         const SizedBox(height: 22),
-        _buildSectionTitle('2. 選擇商品'),
+        _buildSectionTitle('2. ${l10n.chooseProduct}'),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           key: ValueKey('product_$_selectedCatalogBrand'),
@@ -534,7 +581,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 return DropdownMenuItem(
                   value: item.id,
                   child: Text(
-                    '${item.productName} ${item.sizeLabel} · ${item.caffeineLabel}',
+                    '${item.productName} ${item.sizeLabel} - ${item.caffeineLabel}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
@@ -564,7 +611,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
               ),
               const SizedBox(height: 6),
               Text(
-                '資料來源：${selectedItem.sourceName}',
+                '${l10n.source}: ${selectedItem.sourceName}',
                 style: const TextStyle(color: Colors.black54),
               ),
               if (selectedItem.note.isNotEmpty) ...[
@@ -582,25 +629,27 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildManualEstimator(Color primaryColor, Color accentColor) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('1. 選擇飲品類型'),
+        _buildSectionTitle('1. ${l10n.chooseDrinkType}'),
         const SizedBox(height: 12),
-        _buildDrinkSelector(primaryColor, accentColor),
+        _buildDrinkSelector(primaryColor),
         const SizedBox(height: 24),
-        _buildSectionTitle('2. 選擇份量'),
+        _buildSectionTitle('2. ${l10n.chooseAmount}'),
         const SizedBox(height: 12),
         _buildAmountSelector(primaryColor),
         _buildStrengthSelector(primaryColor),
         const SizedBox(height: 18),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text(
-            '我不確定份量或濃度',
-            style: TextStyle(fontWeight: FontWeight.w600),
+          title: Text(
+            l10n.uncertainAmount,
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-          subtitle: const Text('仍可完成記錄，後續分析會知道這筆是估算值。'),
+          subtitle: Text(l10n.uncertainAmountHelp),
           value: _isUncertain,
           activeThumbColor: accentColor,
           onChanged: (value) => setState(() => _isUncertain = value),
@@ -609,7 +658,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     );
   }
 
-  Widget _buildDrinkSelector(Color primaryColor, Color accentColor) {
+  Widget _buildDrinkSelector(Color primaryColor) {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -627,17 +676,20 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(drink.label),
-                  Text(
-                    drink.subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color:
-                          isSelected
-                              ? Colors.white.withValues(alpha: 0.88)
-                              : Colors.black54,
+                  Text(_drinkLabel(drink)),
+                  if (drink.measureType != _MeasureType.manual)
+                    Text(
+                      drink.measureType == _MeasureType.volume
+                          ? '${drink.mgPerMl?.toStringAsFixed(2)} mg/ml'
+                          : '${drink.mgPerServing} mg/${_servingUnit(drink)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color:
+                            isSelected
+                                ? Colors.white.withValues(alpha: 0.88)
+                                : Colors.black54,
+                      ),
                     ),
-                  ),
                 ],
               ),
               selectedColor: primaryColor,
@@ -664,6 +716,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildAmountSelector(Color primaryColor) {
+    final l10n = AppLocalizations.of(context)!;
     final drink = _selectedDrink;
 
     if (drink.measureType == _MeasureType.manual) {
@@ -672,11 +725,11 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
           TextField(
             controller: drinkNameController,
             decoration: InputDecoration(
-              labelText: '飲料名稱',
+              labelText: l10n.drinkName,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              hintText: '例如：拿鐵、提神飲、其他',
+              hintText: l10n.otherDrink,
               prefixIcon: Icon(Icons.local_drink_outlined, color: primaryColor),
             ),
           ),
@@ -685,11 +738,11 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
             controller: caffeineController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: '咖啡因含量 (毫克)',
+              labelText: l10n.caffeineAmountMg,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              hintText: '例如：150',
+              hintText: '150',
               prefixIcon: Icon(Icons.local_cafe_outlined, color: primaryColor),
             ),
             onChanged: (_) => setState(() {}),
@@ -705,7 +758,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
             _servingOptions.map((option) {
               return ChoiceChip(
                 selected: option.count == _selectedServingCount,
-                label: Text('${option.label} ${drink.servingUnit}'),
+                label: Text('${option.label} ${_servingUnit(drink)}'),
                 selectedColor: primaryColor,
                 backgroundColor: Colors.white,
                 labelStyle: TextStyle(
@@ -755,6 +808,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildStrengthSelector(Color primaryColor) {
+    final l10n = AppLocalizations.of(context)!;
     if (!_selectedDrink.supportsStrength) {
       return const SizedBox.shrink();
     }
@@ -763,7 +817,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 22),
-        _buildSectionTitle('3. 沖泡濃淡'),
+        _buildSectionTitle('3. ${l10n.strength}'),
         const SizedBox(height: 10),
         Wrap(
           spacing: 10,
@@ -772,7 +826,9 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 final isSelected = option.id == _selectedStrengthId;
                 return ChoiceChip(
                   selected: isSelected,
-                  label: Text('${option.label} x${option.multiplier}'),
+                  label: Text(
+                    '${_strengthLabel(option)} x${option.multiplier}',
+                  ),
                   selectedColor: primaryColor,
                   backgroundColor: Colors.white,
                   labelStyle: TextStyle(
@@ -793,6 +849,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Widget _buildEstimateBox(Color primaryColor, Color accentColor) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -825,7 +882,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '估算咖啡因',
+                  l10n.estimateCaffeine,
                   style: TextStyle(color: primaryColor.withValues(alpha: 0.78)),
                 ),
                 const SizedBox(height: 3),
@@ -839,7 +896,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
                 ),
                 Text(
                   _entryMode == _CaffeineEntryMode.catalog
-                      ? '${_selectedCatalogItem.caffeineLabel} · ${_selectedCatalogItem.sourceName}'
+                      ? '${_selectedCatalogItem.caffeineLabel} - ${_selectedCatalogItem.sourceName}'
                       : _drinkNameForSubmit,
                   style: const TextStyle(color: Colors.black54),
                 ),
@@ -852,80 +909,94 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   @override
-  Widget build(BuildContext buildContext) {
-    final Color primaryColor = const Color(0xFF4B6B7A);
-    final Color accentColor = const Color(0xFF8BB9A1);
-    final Color bgLight = const Color(0xFFF9F9F7);
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    const primaryColor = Color(0xFF4B6B7A);
+    const accentColor = Color(0xFF8BB9A1);
+    const bgLight = Color(0xFFF9F9F7);
 
     return Scaffold(
       backgroundColor: bgLight,
       appBar: AppBar(
         title: Text(
-          '新增咖啡因紀錄',
-          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+          l10n.addCaffeineRecord,
+          style: const TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white.withValues(alpha: 0.9),
         elevation: 1,
         shadowColor: Colors.black12,
-        iconTheme: IconThemeData(color: primaryColor),
+        iconTheme: const IconThemeData(color: primaryColor),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '可直接選擇台大醫院附近常見商品，WakeMate 會自動帶入咖啡因；找不到品項時也可切換手動估算。',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Center(child: _buildEntryModeSelector(primaryColor)),
-            const SizedBox(height: 26),
-            if (_entryMode == _CaffeineEntryMode.catalog)
-              _buildCatalogSelector(primaryColor, accentColor)
-            else
-              _buildManualEstimator(primaryColor, accentColor),
-            const SizedBox(height: 12),
-            _buildEstimateBox(primaryColor, accentColor),
-            const SizedBox(height: 20),
-            TextField(
-              controller: takingTimeController,
-              readOnly: true,
-              decoration: InputDecoration(
-                labelText: '飲用時間（點擊選擇）',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                prefixIcon: Icon(
-                  Icons.access_time_rounded,
-                  color: primaryColor,
-                ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.caffeineIntro,
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
-              onTap: () => _pickDateTime(takingTimeController),
-            ),
-            const SizedBox(height: 34),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _submitData,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
+              const SizedBox(height: 20),
+              Center(child: _buildEntryModeSelector(primaryColor)),
+              const SizedBox(height: 26),
+              if (_entryMode == _CaffeineEntryMode.catalog)
+                _buildCatalogSelector(primaryColor, accentColor)
+              else
+                _buildManualEstimator(primaryColor, accentColor),
+              const SizedBox(height: 12),
+              _buildEstimateBox(primaryColor, accentColor),
+              const SizedBox(height: 20),
+              TextField(
+                controller: takingTimeController,
+                keyboardType: TextInputType.datetime,
+                decoration: InputDecoration(
+                  labelText: l10n.drinkingTime,
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 5,
-                ),
-                icon: const Icon(Icons.save),
-                label: const Text(
-                  '儲存咖啡因記錄',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  prefixIcon: const Icon(
+                    Icons.access_time_rounded,
+                    color: primaryColor,
+                  ),
+                  helperText: l10n.dateTimeHelper,
+                  suffixIcon: IconButton(
+                    tooltip: l10n.chooseDateTime,
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    onPressed: () => _pickDateTime(takingTimeController),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 34),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _submitData,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 5,
+                  ),
+                  icon: const Icon(Icons.save),
+                  label: Text(
+                    l10n.saveCaffeine,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

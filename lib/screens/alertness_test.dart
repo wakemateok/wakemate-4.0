@@ -139,15 +139,15 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   String _getKssDescription(int level) {
     switch (level) {
       case 1:
-        return "極度警醒";
+        return "極度清醒";
       case 2:
-        return "非常警醒";
+        return "非常清醒";
       case 3:
-        return "警醒";
+        return "清醒";
       case 4:
-        return "比較警醒";
+        return "還算清醒";
       case 5:
-        return "不太警醒但也無睏意";
+        return "不清醒也不睏";
       case 6:
         return "有一些睏意傾向";
       case 7:
@@ -199,7 +199,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                     "第${index + 1}次：${time.inMilliseconds} 毫秒",
                     style: const TextStyle(color: Color(0xFF777777)),
                   );
-                }).toList(),
+                }),
                 const Divider(
                   height: 30,
                   thickness: 1.5,

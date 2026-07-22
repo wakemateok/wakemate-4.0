@@ -10,6 +10,7 @@ import 'package:my_app/api/api_config.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/notification_service.dart';
+import 'package:my_app/utils/recommendation_deduplication.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'CaffeineHistory.dart';
@@ -17,11 +18,13 @@ import 'CaffeineHistory.dart';
 class CaffeineRecommendationPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final bool forceRecalculate;
 
   const CaffeineRecommendationPage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.forceRecalculate = false,
   });
 
   @override
@@ -37,6 +40,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
   bool _isLoading = true;
   String _errorMessage = "";
   bool _isEmptyResult = false;
+  bool _requestStarted = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -84,17 +88,18 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     );
   }
 
-  Future<void> _saveRecommendationData(dynamic newData) async {
+  Future<void> _saveRecommendationData(
+    List<Map<String, dynamic>> newEntries,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final dataStr = prefs.getString('caffeine_recommendations') ?? '[]';
-    List<dynamic> currentHistory;
+    List<Map<String, dynamic>> currentHistory;
     try {
-      currentHistory = json.decode(dataStr);
+      currentHistory = recommendationMapsFrom(json.decode(dataStr));
     } catch (_) {
       currentHistory = [];
     }
 
-    final List<dynamic> newEntries = newData is List ? newData : [newData];
     final targetDateStr = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
 
     currentHistory =
@@ -107,20 +112,87 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
           return DateFormat('yyyy-MM-dd').format(parsed) != targetDateStr;
         }).toList();
 
-    currentHistory.addAll(newEntries);
+    currentHistory.addAll(dedupeRecommendations(newEntries));
     await prefs.setString(
       'caffeine_recommendations',
       json.encode(currentHistory),
     );
   }
 
+  Future<List<Map<String, dynamic>>> _fetchRecommendations() async {
+    const fetchTimeout = Duration(seconds: 20);
+    final recommendationUrl =
+        '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
+    final response = await http
+        .get(Uri.parse(recommendationUrl))
+        .timeout(fetchTimeout);
+
+    if (response.statusCode != 200) {
+      final l10n = AppLocalizations.of(context)!;
+      final bodyPreview =
+          response.body.length > 120
+              ? '${response.body.substring(0, 120)}...'
+              : response.body;
+      throw Exception(
+        '${l10n.recommendationFailed}: ${response.statusCode}\n$bodyPreview',
+      );
+    }
+
+    final data = json.decode(utf8.decode(response.bodyBytes));
+    return recommendationMapsFrom(data);
+  }
+
+  List<Map<String, dynamic>> _selectedDateDedupedEntries(
+    List<Map<String, dynamic>> entries,
+  ) {
+    return dedupeRecommendations(
+      filterRecommendationsForDate(entries, widget.selectedDate),
+    );
+  }
+
+  Future<bool> _useExistingRecommendationsIfAvailable({
+    required String languageCode,
+  }) async {
+    final entries = _selectedDateDedupedEntries(await _fetchRecommendations());
+    if (entries.isEmpty) return false;
+
+    await _saveRecommendationData(entries);
+    await _configureNotifications(entries: entries, languageCode: languageCode);
+    _showSnackBar(
+      AppLocalizations.of(context)!.recommendationFetched,
+      color: Colors.green,
+    );
+
+    if (!mounted) return true;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => CaffeineHistoryPage(
+              userId: widget.userId,
+              selectedDate: widget.selectedDate,
+            ),
+      ),
+    );
+    return true;
+  }
+
   Future<void> sendAllDataAndFetchRecommendation() async {
+    if (_requestStarted) return;
+    _requestStarted = true;
+
     final l10n = AppLocalizations.of(context)!;
     final languageCode = Localizations.localeOf(context).languageCode;
 
     try {
+      if (!widget.forceRecalculate) {
+        final usedExisting = await _useExistingRecommendationsIfAvailable(
+          languageCode: languageCode,
+        );
+        if (usedExisting) return;
+      }
+
       const calculationTimeout = Duration(seconds: 90);
-      const fetchTimeout = Duration(seconds: 20);
       final calculationUrl =
           '${ApiConfig.baseUrl}/calculate/?user_id=${widget.userId}';
       final calculationResponse = await http
@@ -139,25 +211,9 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         return;
       }
 
-      final recommendationUrl =
-          '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
-      final response = await http
-          .get(Uri.parse(recommendationUrl))
-          .timeout(fetchTimeout);
-
-      if (response.statusCode != 200) {
-        final bodyPreview =
-            response.body.length > 120
-                ? '${response.body.substring(0, 120)}...'
-                : response.body;
-        _showError(
-          '${l10n.recommendationFailed}: ${response.statusCode}\n$bodyPreview',
-        );
-        return;
-      }
-
-      final data = json.decode(utf8.decode(response.bodyBytes));
-      final entries = data is List ? data : [data];
+      final entries = _selectedDateDedupedEntries(
+        await _fetchRecommendations(),
+      );
 
       if (entries.isEmpty) {
         await _configureNotifications(
@@ -192,6 +248,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       _showError('${l10n.networkError}: socket');
     } catch (e) {
       _showError('${l10n.recommendationFailed}: $e');
+    } finally {
+      _requestStarted = false;
     }
   }
 
@@ -364,7 +422,17 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
             });
             _animationController.reset();
             _animationController.forward();
-            sendAllDataAndFetchRecommendation();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) => CaffeineRecommendationPage(
+                      userId: widget.userId,
+                      selectedDate: widget.selectedDate,
+                      forceRecalculate: true,
+                    ),
+              ),
+            );
           },
           icon: const Icon(Icons.refresh, size: 20),
           label: Text(l10n.retry, style: const TextStyle(fontSize: 18)),

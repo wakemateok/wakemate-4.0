@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/utils/recommendation_deduplication.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'CaffeineRecommendationPage.dart';
@@ -98,37 +99,12 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
   List<dynamic> _filterSelectedDateData() {
     if (_allData.isEmpty) return [];
 
-    final selectedDateStr = DateFormat(
-      'yyyy-MM-dd',
-    ).format(widget.selectedDate);
-
-    final filtered =
-        _allData.where((item) {
-          final timingStr =
-              item['recommended_caffeine_intake_timing']?.toString() ?? '';
-          if (timingStr.isEmpty) return false;
-
-          final localDateTime = _parseAndLocalize(timingStr);
-          if (localDateTime == null) return false;
-
-          return DateFormat('yyyy-MM-dd').format(localDateTime) ==
-              selectedDateStr;
-        }).toList();
-
-    filtered.sort((a, b) {
-      final aTime = _parseAndLocalize(
-        a['recommended_caffeine_intake_timing']?.toString(),
-      );
-      final bTime = _parseAndLocalize(
-        b['recommended_caffeine_intake_timing']?.toString(),
-      );
-      if (aTime == null && bTime == null) return 0;
-      if (aTime == null) return 1;
-      if (bTime == null) return -1;
-      return aTime.compareTo(bTime);
-    });
-
-    return filtered;
+    return dedupeRecommendations(
+      filterRecommendationsForDate(
+        recommendationMapsFrom(_allData),
+        widget.selectedDate,
+      ),
+    );
   }
 
   Widget _buildDataRow({
@@ -147,6 +123,38 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _recalculateSelectedDate() async {
+    final navigator = Navigator.of(context);
+    await _clearDataForSelectedDate();
+    if (!mounted) return;
+    await navigator.push(
+      MaterialPageRoute(
+        builder:
+            (context) => CaffeineRecommendationPage(
+              userId: widget.userId,
+              selectedDate: widget.selectedDate,
+              forceRecalculate: true,
+            ),
+      ),
+    );
+    if (mounted) await _loadData();
+  }
+
+  Widget _buildRecalculateButton(AppLocalizations l10n) {
+    return ElevatedButton.icon(
+      onPressed: _recalculateSelectedDate,
+      icon: const Icon(Icons.auto_graph),
+      label: Text(l10n.calculateAgain),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _accentColor,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 5,
+      ),
     );
   }
 
@@ -178,8 +186,15 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
               : hasHistory
               ? ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: historyForSelectedDate.length,
+                itemCount: historyForSelectedDate.length + 1,
                 itemBuilder: (context, index) {
+                  if (index == historyForSelectedDate.length) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 20),
+                      child: Center(child: _buildRecalculateButton(l10n)),
+                    );
+                  }
+
                   final item = historyForSelectedDate[index];
                   final recommendedTimingStr =
                       item['recommended_caffeine_intake_timing']?.toString() ??
@@ -262,37 +277,7 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 30),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final navigator = Navigator.of(context);
-                          await _clearDataForSelectedDate();
-                          if (!mounted) return;
-                          await navigator.push(
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => CaffeineRecommendationPage(
-                                    userId: widget.userId,
-                                    selectedDate: widget.selectedDate,
-                                  ),
-                            ),
-                          );
-                          if (mounted) await _loadData();
-                        },
-                        icon: const Icon(Icons.auto_graph),
-                        label: Text(l10n.calculateAgain),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 5,
-                        ),
-                      ),
+                      _buildRecalculateButton(l10n),
                     ],
                   ),
                 ),

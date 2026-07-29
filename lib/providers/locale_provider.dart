@@ -54,7 +54,7 @@ class LocaleProvider extends ChangeNotifier {
 
     if (lang == 'en' && country == 'US') return 'en_US';
     if (lang == 'zh' && country == 'TW') return 'zh_TW';
-    if (lang == 'zh' && (country == null || country!.isEmpty)) return 'zh';
+    if (lang == 'zh' && (country == null || country.isEmpty)) return 'zh';
     if (lang == 'id') return 'id_ID';
 
     // 預設回 zh_TW

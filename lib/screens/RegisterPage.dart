@@ -138,6 +138,7 @@ class _RegisterPageState extends State<RegisterPage> {
           // 使用 SingleChildScrollView 避免鍵盤彈出時溢位
           padding: const EdgeInsets.all(24.0),
           child: Card(
+            color: _cardColor,
             elevation: 12.0, // 增加陰影效果
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20.0), // 設定圓角

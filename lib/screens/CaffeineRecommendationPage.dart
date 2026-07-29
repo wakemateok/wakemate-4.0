@@ -119,7 +119,9 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchRecommendations() async {
+  Future<List<Map<String, dynamic>>> _fetchRecommendations({
+    required String recommendationFailedLabel,
+  }) async {
     const fetchTimeout = Duration(seconds: 20);
     final recommendationUrl =
         '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
@@ -128,13 +130,12 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         .timeout(fetchTimeout);
 
     if (response.statusCode != 200) {
-      final l10n = AppLocalizations.of(context)!;
       final bodyPreview =
           response.body.length > 120
               ? '${response.body.substring(0, 120)}...'
               : response.body;
       throw Exception(
-        '${l10n.recommendationFailed}: ${response.statusCode}\n$bodyPreview',
+        '$recommendationFailedLabel: ${response.statusCode}\n$bodyPreview',
       );
     }
 
@@ -152,16 +153,19 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
   Future<bool> _useExistingRecommendationsIfAvailable({
     required String languageCode,
+    required String recommendationFetchedMessage,
+    required String recommendationFailedLabel,
   }) async {
-    final entries = _selectedDateDedupedEntries(await _fetchRecommendations());
+    final entries = _selectedDateDedupedEntries(
+      await _fetchRecommendations(
+        recommendationFailedLabel: recommendationFailedLabel,
+      ),
+    );
     if (entries.isEmpty) return false;
 
     await _saveRecommendationData(entries);
     await _configureNotifications(entries: entries, languageCode: languageCode);
-    _showSnackBar(
-      AppLocalizations.of(context)!.recommendationFetched,
-      color: Colors.green,
-    );
+    _showSnackBar(recommendationFetchedMessage, color: Colors.green);
 
     if (!mounted) return true;
     Navigator.pushReplacement(
@@ -188,6 +192,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       if (!widget.forceRecalculate) {
         final usedExisting = await _useExistingRecommendationsIfAvailable(
           languageCode: languageCode,
+          recommendationFetchedMessage: l10n.recommendationFetched,
+          recommendationFailedLabel: l10n.recommendationFailed,
         );
         if (usedExisting) return;
       }
@@ -212,7 +218,9 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       }
 
       final entries = _selectedDateDedupedEntries(
-        await _fetchRecommendations(),
+        await _fetchRecommendations(
+          recommendationFailedLabel: l10n.recommendationFailed,
+        ),
       );
 
       if (entries.isEmpty) {
@@ -290,8 +298,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
   }
 
   void _showEmptyResult() {
-    final l10n = AppLocalizations.of(context)!;
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _errorMessage = l10n.noRecommendationBody;
       _isEmptyResult = true;

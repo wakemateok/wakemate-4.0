@@ -349,280 +349,280 @@ class AppLocalizationsZh extends AppLocalizations {
   String get enterPositiveCaffeine => '请输入大于 0 的咖啡因含量';
 
   @override
-  String get caffeineIntro => '????????????????????????????????';
+  String get caffeineIntro => '可选择台大医院附近商品，或手动估算咖啡因。若有对应翻译，商品细节会依照目前 App 语言显示。';
 
   @override
-  String get loginWelcome => '????';
+  String get loginWelcome => '欢迎回来';
 
   @override
-  String get loginTitle => '????';
+  String get loginTitle => '登录';
 
   @override
-  String get loginSubtitle => '????? Email ???';
+  String get loginSubtitle => '请输入 Email 和密码';
 
   @override
-  String get passwordLabel => '??';
+  String get passwordLabel => '密码';
 
   @override
-  String get loginButton => '??';
+  String get loginButton => '登录';
 
   @override
-  String get loginMissingCredentials => '??? Email ???';
+  String get loginMissingCredentials => '请输入 Email 和密码。';
 
   @override
-  String get loginSuccessPrefix => '????';
+  String get loginSuccessPrefix => '登录成功';
 
   @override
-  String get loginMissingUserId => '???????????? ID';
+  String get loginMissingUserId => '登录成功，但未收到使用者 ID。';
 
   @override
-  String get loginInvalidCredentials => '?????Email ??????';
+  String get loginInvalidCredentials => '登录失败：Email 或密码错误。';
 
   @override
-  String get loginFailedPrefix => '????';
+  String get loginFailedPrefix => '登录失败';
 
   @override
-  String get serverUnknownError => '?????????';
+  String get serverUnknownError => '未知的服务器错误。';
 
   @override
-  String get serverInvalidResponse => '???????????';
+  String get serverInvalidResponse => '服务器返回无效回应。';
 
   @override
-  String get serverConnectionError => '????????';
+  String get serverConnectionError => '无法连接到服务器。';
 
   @override
-  String get noAccountPrompt => '??????';
+  String get noAccountPrompt => '还没有账号？';
 
   @override
-  String get registerLink => '????';
+  String get registerLink => '在这里注册';
 
   @override
-  String get registerPageTitle => '?????';
+  String get registerPageTitle => '建立账号';
 
   @override
-  String get registerTitle => '?????';
+  String get registerTitle => '建立新账号';
 
   @override
-  String get nameLabel => '??';
+  String get nameLabel => '姓名';
 
   @override
-  String get registerButton => '??';
+  String get registerButton => '注册';
 
   @override
-  String get registerMissingFields => '???????';
+  String get registerMissingFields => '请填写所有栏位。';
 
   @override
-  String get invalidEmailFormat => 'Email ?????';
+  String get invalidEmailFormat => 'Email 格式不正确。';
 
   @override
-  String get registerSuccessLogin => '????????';
+  String get registerSuccessLogin => '注册成功，请登录。';
 
   @override
-  String get registerEmailAlreadyRegistered => '?????? Email ????';
+  String get registerEmailAlreadyRegistered => '注册失败：此 Email 已被注册。';
 
   @override
-  String get registerFailedPrefix => '????';
+  String get registerFailedPrefix => '注册失败';
 
   @override
-  String get bodySettingsTitle => '??????';
+  String get bodySettingsTitle => '身体资讯';
 
   @override
-  String get genderLabel => '??';
+  String get genderLabel => '性别';
 
   @override
-  String get maleLabel => '?';
+  String get maleLabel => '男';
 
   @override
-  String get femaleLabel => '?';
+  String get femaleLabel => '女';
 
   @override
-  String get ageLabel => '??';
+  String get ageLabel => '年龄';
 
   @override
-  String get ageHint => '???????';
+  String get ageHint => '请输入年龄';
 
   @override
-  String get ageRequired => '??????';
+  String get ageRequired => '年龄为必填。';
 
   @override
-  String get invalidAge => '????????';
+  String get invalidAge => '请输入有效的年龄。';
 
   @override
-  String get heightLabel => '?? (cm)';
+  String get heightLabel => '身高 (cm)';
 
   @override
-  String get heightHint => '???????';
+  String get heightHint => '请输入身高';
 
   @override
-  String get heightRequired => '??????';
+  String get heightRequired => '身高为必填。';
 
   @override
-  String get invalidHeight => '???????';
+  String get invalidHeight => '请输入有效的身高。';
 
   @override
-  String get weightLabel => '?? (kg)';
+  String get weightLabel => '体重 (kg)';
 
   @override
-  String get weightHint => '???????';
+  String get weightHint => '请输入体重';
 
   @override
-  String get weightRequired => '??????';
+  String get weightRequired => '体重为必填。';
 
   @override
-  String get invalidWeight => '???????';
+  String get invalidWeight => '请输入有效的体重。';
 
   @override
-  String get bmiHint => '??????? BMI';
+  String get bmiHint => 'BMI 会自动计算。';
 
   @override
-  String get saving => '???...';
+  String get saving => '储存中...';
 
   @override
-  String get saveSettings => '????';
+  String get saveSettings => '储存设定';
 
   @override
-  String get settingsSaved => '????????';
+  String get settingsSaved => '设定已储存。';
 
   @override
-  String get settingsSaveFailed => '????';
+  String get settingsSaveFailed => '储存设定失败';
 
   @override
-  String get settingsLoadFailed => '??????';
+  String get settingsLoadFailed => '载入资料失败';
 
   @override
-  String get settingsLoadError => '??????';
+  String get settingsLoadError => '载入资料时发生错误';
 
   @override
-  String get completeRequiredFieldsAndGender => '????????????????';
+  String get completeRequiredFieldsAndGender => '请填写所有必填栏位并选择性别。';
 
   @override
-  String get baselineQuestionnaireTitle => '??????';
+  String get baselineQuestionnaireTitle => '初始研究问卷';
 
   @override
   String get baselineQuestionnaireBody =>
-      '????????????????????????????????????????? WakeMate?';
+      '这份问卷只需要在研究开始时填写一次。如果您已经填过或目前不方便填写，可以先略过并进入 WakeMate。';
 
   @override
   String get questionnaireReturnInstruction =>
-      '??????????????????? WakeMate App?';
+      '完成问卷后，请自行关闭浏览器视窗，切换回 WakeMate App。';
 
   @override
   String get baselineQuestionnaireNotConfigured =>
-      '??????????????????? App??????????????';
+      '初始问卷链接尚未设定。您可以先略过并进入 App，或稍后再更新链接。';
 
   @override
-  String get skipEnterApp => '????? App';
+  String get skipEnterApp => '略过并进入 App';
 
   @override
-  String get linkNotConfiguredSuffix => '??????';
+  String get linkNotConfiguredSuffix => '链接尚未设定。';
 
   @override
-  String get unableToOpenPrefix => '????';
+  String get unableToOpenPrefix => '无法开启';
 
   @override
-  String get chineseBaselineQuestionnaire => '??????';
+  String get chineseBaselineQuestionnaire => '中文初始问卷';
 
   @override
-  String get indonesianBaselineQuestionnaire => '???????';
+  String get indonesianBaselineQuestionnaire => '印尼文初始问卷';
 
   @override
-  String get chineseDailyQuestionnaire => '??????';
+  String get chineseDailyQuestionnaire => '中文每日问卷';
 
   @override
-  String get indonesianDailyQuestionnaire => '???????';
+  String get indonesianDailyQuestionnaire => '印尼文每日问卷';
 
   @override
-  String get notificationCenterTitle => '????';
+  String get notificationCenterTitle => '通知';
 
   @override
-  String get alertnessTapToStart => '????';
+  String get alertnessTapToStart => '点击开始';
 
   @override
-  String get alertnessWait => '???...';
+  String get alertnessWait => '请稍候...';
 
   @override
-  String get alertnessTapNow => '????';
+  String get alertnessTapNow => '现在点击！';
 
   @override
-  String get alertnessTooEarly => '???????';
+  String get alertnessTooEarly => '太快了，请再试一次。';
 
   @override
-  String get alertnessTrialPrefix => '?';
+  String get alertnessTrialPrefix => '第';
 
   @override
-  String get alertnessTrialSuffix => '?';
+  String get alertnessTrialSuffix => '次';
 
   @override
-  String get millisecondsUnit => '??';
+  String get millisecondsUnit => '毫秒';
 
   @override
-  String get alertnessResultTitle => '????';
+  String get alertnessResultTitle => '测试结果';
 
   @override
-  String get alertnessEachReactionTime => '???????';
+  String get alertnessEachReactionTime => '每次反应时间：';
 
   @override
-  String get alertnessAverageReactionTime => '??????';
+  String get alertnessAverageReactionTime => '平均反应时间';
 
   @override
-  String get alertnessChooseKss => '?????????? (KSS):';
+  String get alertnessChooseKss => '请选择您目前的清醒程度 (KSS)：';
 
   @override
-  String get alertnessChooseKssHint => '?? KSS ??';
+  String get alertnessChooseKssHint => '请选择 KSS 分数';
 
   @override
-  String get alertnessRetest => '????';
+  String get alertnessRetest => '重新测试';
 
   @override
-  String get alertnessDoneClose => '?????';
+  String get alertnessDoneClose => '完成并关闭';
 
   @override
-  String get alertnessDataSent => '????????';
+  String get alertnessDataSent => '资料已成功送出。';
 
   @override
-  String get alertnessSubmitFailedStatus => '?????????';
+  String get alertnessSubmitFailedStatus => '送出失败，状态码：';
 
   @override
-  String get alertnessNetworkSubmitFailed => '???????????';
+  String get alertnessNetworkSubmitFailed => '网络错误，无法送出资料。';
 
   @override
-  String get tapHere => '????';
+  String get tapHere => '点这里';
 
   @override
-  String get startTest => '????';
+  String get startTest => '开始测试';
 
   @override
-  String get kss1 => '????';
+  String get kss1 => '极度清醒';
 
   @override
-  String get kss2 => '????';
+  String get kss2 => '非常清醒';
 
   @override
-  String get kss3 => '??';
+  String get kss3 => '清醒';
 
   @override
-  String get kss4 => '????';
+  String get kss4 => '还算清醒';
 
   @override
-  String get kss5 => '??????';
+  String get kss5 => '不清醒也不想睡';
 
   @override
-  String get kss6 => '???????';
+  String get kss6 => '开始有些困意';
 
   @override
-  String get kss7 => '???????????????';
+  String get kss7 => '有点困，但不难保持清醒';
 
   @override
-  String get kss8 => '????????????????';
+  String get kss8 => '有点困，需要花力气保持清醒';
 
   @override
-  String get kss9 => '????????????????';
+  String get kss9 => '非常困，需要很努力保持清醒';
 
   @override
-  String get notificationChannelName => 'WakeMate ?????';
+  String get notificationChannelName => 'WakeMate 提醒';
 
   @override
-  String get notificationChannelDescription => '????????????????';
+  String get notificationChannelDescription => 'WakeMate 咖啡因推荐与提醒通知';
 }
 
 /// The translations for Chinese, as used in Taiwan (`zh_TW`).
@@ -970,278 +970,278 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get enterPositiveCaffeine => '請輸入大於 0 的咖啡因含量';
 
   @override
-  String get caffeineIntro => '????????????????????????????????';
+  String get caffeineIntro => '可選擇台大醫院附近商品，或手動估算咖啡因。若有對應翻譯，商品細節會依照目前 App 語言顯示。';
 
   @override
-  String get loginWelcome => '????';
+  String get loginWelcome => '歡迎回來';
 
   @override
-  String get loginTitle => '????';
+  String get loginTitle => '登入';
 
   @override
-  String get loginSubtitle => '????? Email ???';
+  String get loginSubtitle => '請輸入 Email 和密碼';
 
   @override
-  String get passwordLabel => '??';
+  String get passwordLabel => '密碼';
 
   @override
-  String get loginButton => '??';
+  String get loginButton => '登入';
 
   @override
-  String get loginMissingCredentials => '??? Email ???';
+  String get loginMissingCredentials => '請輸入 Email 和密碼。';
 
   @override
-  String get loginSuccessPrefix => '????';
+  String get loginSuccessPrefix => '登入成功';
 
   @override
-  String get loginMissingUserId => '????????????? ID';
+  String get loginMissingUserId => '登入成功，但未收到使用者 ID。';
 
   @override
-  String get loginInvalidCredentials => '?????Email ??????';
+  String get loginInvalidCredentials => '登入失敗：Email 或密碼錯誤。';
 
   @override
-  String get loginFailedPrefix => '????';
+  String get loginFailedPrefix => '登入失敗';
 
   @override
-  String get serverUnknownError => '?????????';
+  String get serverUnknownError => '未知的伺服器錯誤。';
 
   @override
-  String get serverInvalidResponse => '???????????';
+  String get serverInvalidResponse => '伺服器回傳無效的回應。';
 
   @override
-  String get serverConnectionError => '????????';
+  String get serverConnectionError => '無法連線到伺服器。';
 
   @override
-  String get noAccountPrompt => '??????';
+  String get noAccountPrompt => '還沒有帳號？';
 
   @override
-  String get registerLink => '????';
+  String get registerLink => '在這裡註冊';
 
   @override
-  String get registerPageTitle => '?????';
+  String get registerPageTitle => '建立帳號';
 
   @override
-  String get registerTitle => '?????';
+  String get registerTitle => '建立新帳號';
 
   @override
-  String get nameLabel => '??';
+  String get nameLabel => '姓名';
 
   @override
-  String get registerButton => '??';
+  String get registerButton => '註冊';
 
   @override
-  String get registerMissingFields => '???????';
+  String get registerMissingFields => '請填寫所有欄位。';
 
   @override
-  String get invalidEmailFormat => 'Email ?????';
+  String get invalidEmailFormat => 'Email 格式不正確。';
 
   @override
-  String get registerSuccessLogin => '????????';
+  String get registerSuccessLogin => '註冊成功，請登入。';
 
   @override
-  String get registerEmailAlreadyRegistered => '?????? Email ????';
+  String get registerEmailAlreadyRegistered => '註冊失敗：此 Email 已被註冊。';
 
   @override
-  String get registerFailedPrefix => '????';
+  String get registerFailedPrefix => '註冊失敗';
 
   @override
-  String get bodySettingsTitle => '??????';
+  String get bodySettingsTitle => '身體資訊';
 
   @override
-  String get genderLabel => '??';
+  String get genderLabel => '性別';
 
   @override
-  String get maleLabel => '?';
+  String get maleLabel => '男';
 
   @override
-  String get femaleLabel => '?';
+  String get femaleLabel => '女';
 
   @override
-  String get ageLabel => '??';
+  String get ageLabel => '年齡';
 
   @override
-  String get ageHint => '???????';
+  String get ageHint => '請輸入年齡';
 
   @override
-  String get ageRequired => '??????';
+  String get ageRequired => '年齡為必填。';
 
   @override
-  String get invalidAge => '????????';
+  String get invalidAge => '請輸入有效的年齡。';
 
   @override
-  String get heightLabel => '?? (cm)';
+  String get heightLabel => '身高 (cm)';
 
   @override
-  String get heightHint => '???????';
+  String get heightHint => '請輸入身高';
 
   @override
-  String get heightRequired => '??????';
+  String get heightRequired => '身高為必填。';
 
   @override
-  String get invalidHeight => '???????';
+  String get invalidHeight => '請輸入有效的身高。';
 
   @override
-  String get weightLabel => '?? (kg)';
+  String get weightLabel => '體重 (kg)';
 
   @override
-  String get weightHint => '???????';
+  String get weightHint => '請輸入體重';
 
   @override
-  String get weightRequired => '??????';
+  String get weightRequired => '體重為必填。';
 
   @override
-  String get invalidWeight => '???????';
+  String get invalidWeight => '請輸入有效的體重。';
 
   @override
-  String get bmiHint => '??????? BMI';
+  String get bmiHint => 'BMI 會自動計算。';
 
   @override
-  String get saving => '???...';
+  String get saving => '儲存中...';
 
   @override
-  String get saveSettings => '????';
+  String get saveSettings => '儲存設定';
 
   @override
-  String get settingsSaved => '????????';
+  String get settingsSaved => '設定已儲存。';
 
   @override
-  String get settingsSaveFailed => '????';
+  String get settingsSaveFailed => '儲存設定失敗';
 
   @override
-  String get settingsLoadFailed => '??????';
+  String get settingsLoadFailed => '載入資料失敗';
 
   @override
-  String get settingsLoadError => '??????';
+  String get settingsLoadError => '載入資料時發生錯誤';
 
   @override
-  String get completeRequiredFieldsAndGender => '????????????????';
+  String get completeRequiredFieldsAndGender => '請填寫所有必填欄位並選擇性別。';
 
   @override
-  String get baselineQuestionnaireTitle => '??????';
+  String get baselineQuestionnaireTitle => '初始研究問卷';
 
   @override
   String get baselineQuestionnaireBody =>
-      '????????????????????????????????????????? WakeMate?';
+      '這份問卷只需要在研究開始時填寫一次。如果您已經填過或目前不方便填寫，可以先略過並進入 WakeMate。';
 
   @override
   String get questionnaireReturnInstruction =>
-      '??????????????????? WakeMate App?';
+      '完成問卷後，請自行關閉瀏覽器視窗，切換回 WakeMate App。';
 
   @override
   String get baselineQuestionnaireNotConfigured =>
-      '??????????????????? App??????????????';
+      '初始問卷連結尚未設定。您可以先略過並進入 App，或稍後再更新連結。';
 
   @override
-  String get skipEnterApp => '????? App';
+  String get skipEnterApp => '略過並進入 App';
 
   @override
-  String get linkNotConfiguredSuffix => '??????';
+  String get linkNotConfiguredSuffix => '連結尚未設定。';
 
   @override
-  String get unableToOpenPrefix => '????';
+  String get unableToOpenPrefix => '無法開啟';
 
   @override
-  String get chineseBaselineQuestionnaire => '??????';
+  String get chineseBaselineQuestionnaire => '中文初始問卷';
 
   @override
-  String get indonesianBaselineQuestionnaire => '???????';
+  String get indonesianBaselineQuestionnaire => '印尼文初始問卷';
 
   @override
-  String get chineseDailyQuestionnaire => '??????';
+  String get chineseDailyQuestionnaire => '中文每日問卷';
 
   @override
-  String get indonesianDailyQuestionnaire => '???????';
+  String get indonesianDailyQuestionnaire => '印尼文每日問卷';
 
   @override
-  String get notificationCenterTitle => '????';
+  String get notificationCenterTitle => '通知';
 
   @override
-  String get alertnessTapToStart => '????';
+  String get alertnessTapToStart => '點擊開始';
 
   @override
-  String get alertnessWait => '???...';
+  String get alertnessWait => '請稍候...';
 
   @override
-  String get alertnessTapNow => '????';
+  String get alertnessTapNow => '現在點擊！';
 
   @override
-  String get alertnessTooEarly => '???????';
+  String get alertnessTooEarly => '太快了，請再試一次。';
 
   @override
-  String get alertnessTrialPrefix => '?';
+  String get alertnessTrialPrefix => '第';
 
   @override
-  String get alertnessTrialSuffix => '?';
+  String get alertnessTrialSuffix => '次';
 
   @override
-  String get millisecondsUnit => '??';
+  String get millisecondsUnit => '毫秒';
 
   @override
-  String get alertnessResultTitle => '????';
+  String get alertnessResultTitle => '測試結果';
 
   @override
-  String get alertnessEachReactionTime => '???????';
+  String get alertnessEachReactionTime => '每次反應時間：';
 
   @override
-  String get alertnessAverageReactionTime => '??????';
+  String get alertnessAverageReactionTime => '平均反應時間';
 
   @override
-  String get alertnessChooseKss => '?????????? (KSS):';
+  String get alertnessChooseKss => '請選擇您目前的清醒程度 (KSS)：';
 
   @override
-  String get alertnessChooseKssHint => '?? KSS ??';
+  String get alertnessChooseKssHint => '請選擇 KSS 分數';
 
   @override
-  String get alertnessRetest => '????';
+  String get alertnessRetest => '重新測試';
 
   @override
-  String get alertnessDoneClose => '?????';
+  String get alertnessDoneClose => '完成並關閉';
 
   @override
-  String get alertnessDataSent => '????????';
+  String get alertnessDataSent => '資料已成功送出。';
 
   @override
-  String get alertnessSubmitFailedStatus => '?????????';
+  String get alertnessSubmitFailedStatus => '送出失敗，狀態碼：';
 
   @override
-  String get alertnessNetworkSubmitFailed => '???????????';
+  String get alertnessNetworkSubmitFailed => '網路錯誤，無法送出資料。';
 
   @override
-  String get tapHere => '????';
+  String get tapHere => '點這裡';
 
   @override
-  String get startTest => '????';
+  String get startTest => '開始測試';
 
   @override
-  String get kss1 => '????';
+  String get kss1 => '極度清醒';
 
   @override
-  String get kss2 => '????';
+  String get kss2 => '非常清醒';
 
   @override
-  String get kss3 => '??';
+  String get kss3 => '清醒';
 
   @override
-  String get kss4 => '????';
+  String get kss4 => '還算清醒';
 
   @override
-  String get kss5 => '??????';
+  String get kss5 => '不清醒也不想睡';
 
   @override
-  String get kss6 => '???????';
+  String get kss6 => '開始有些睏意';
 
   @override
-  String get kss7 => '???????????????';
+  String get kss7 => '有點睏，但不難保持清醒';
 
   @override
-  String get kss8 => '????????????????';
+  String get kss8 => '有點睏，需要花力氣保持清醒';
 
   @override
-  String get kss9 => '????????????????';
+  String get kss9 => '非常睏，需要很努力保持清醒';
 
   @override
-  String get notificationChannelName => 'WakeMate ?????';
+  String get notificationChannelName => 'WakeMate 提醒';
 
   @override
-  String get notificationChannelDescription => '????????????????';
+  String get notificationChannelDescription => 'WakeMate 咖啡因推薦與提醒通知';
 }

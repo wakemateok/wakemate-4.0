@@ -493,7 +493,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLoadError => '载入资料时发生错误';
 
   @override
+  String get settingsServerUnavailable => '服务器目前无法使用，请稍后再试或联系管理员。';
+
+  @override
+  String get settingsRequestTimeout => '服务器回应逾时，请确认网络后再试一次。';
+
+  @override
   String get completeRequiredFieldsAndGender => '请填写所有必填栏位并选择性别。';
+
+  @override
+  String get welcomeTitle => '欢迎使用 WakeMate';
+
+  @override
+  String get welcomeBody =>
+      'WakeMate 协助您记录每日咖啡因摄取、睡眠与清醒状态，并透过个人化分析，帮助您了解咖啡因可能对日常作息与精神状态造成的影响。';
+
+  @override
+  String get welcomeFirstSteps => '第一次使用时，请先完成基本资料设定，之后即可开始记录每天的咖啡因摄取与清醒度测试。';
 
   @override
   String get baselineQuestionnaireTitle => '初始研究问卷';
@@ -533,6 +549,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationCenterTitle => '通知';
+
+  @override
+  String get alertnessIntroTitle => '清醒度测试';
+
+  @override
+  String get alertnessIntroBody =>
+      '接下来将进行6次的清醒度测试。\n\n测试过程中，画面会随机出现颜色变化。当您看到提示时，请「尽可能快速按下按钮」。\n\n系统将记录您的反应时间，用来评估目前的清醒状态。\n\n准备好后，请按下「开始测试」。';
 
   @override
   String get alertnessTapToStart => '点击开始';
@@ -1114,7 +1137,23 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get settingsLoadError => '載入資料時發生錯誤';
 
   @override
+  String get settingsServerUnavailable => '伺服器目前無法使用，請稍後再試或聯絡管理者。';
+
+  @override
+  String get settingsRequestTimeout => '伺服器回應逾時，請確認網路後再試一次。';
+
+  @override
   String get completeRequiredFieldsAndGender => '請填寫所有必填欄位並選擇性別。';
+
+  @override
+  String get welcomeTitle => '歡迎使用 WakeMate';
+
+  @override
+  String get welcomeBody =>
+      'WakeMate 協助您記錄每日咖啡因攝取、睡眠與清醒狀態，並透過個人化分析，幫助您了解咖啡因可能對日常作息與精神狀態造成的影響。';
+
+  @override
+  String get welcomeFirstSteps => '第一次使用時，請先完成基本資料設定，之後即可開始記錄每天的咖啡因攝取與清醒度測試。';
 
   @override
   String get baselineQuestionnaireTitle => '初始研究問卷';
@@ -1154,6 +1193,13 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get notificationCenterTitle => '通知';
+
+  @override
+  String get alertnessIntroTitle => '清醒度測試';
+
+  @override
+  String get alertnessIntroBody =>
+      '接下來將進行6次的清醒度測試。\n\n測試過程中，畫面會隨機出現顏色變化。當您看到提示時，請「盡可能快速按下按鈕」。\n\n系統將記錄您的反應時間，用來評估目前的清醒狀態。\n\n準備好後，請按下「開始測試」。';
 
   @override
   String get alertnessTapToStart => '點擊開始';

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class AlertnessTestPage extends StatefulWidget {
@@ -36,7 +37,8 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   int _lapses = 0;
   int _falseStarts = 0;
 
-  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
+  static const Duration _requestTimeout = Duration(seconds: 60);
+  final String baseUrl = ApiConfig.baseUrl;
   int? _selectedKssLevel;
 
   void _startTest() {
@@ -331,19 +333,21 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     final url = Uri.parse('$baseUrl/users_pvt/');
 
     try {
-      final res = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'mean_rt': avgTime,
-          'lapses': lapses,
-          'false_starts': falseStarts,
-          'kss_level': kssLevel,
-          'device': 'Mobile',
-          'test_at': DateTime.now().toUtc().toIso8601String(),
-        }),
-      );
+      final res = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'user_id': widget.userId,
+              'mean_rt': avgTime,
+              'lapses': lapses,
+              'false_starts': falseStarts,
+              'kss_level': kssLevel,
+              'device': 'Mobile',
+              'test_at': DateTime.now().toUtc().toIso8601String(),
+            }),
+          )
+          .timeout(_requestTimeout);
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         if (mounted) {
@@ -358,13 +362,20 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                '${l10n.alertnessSubmitFailedStatus} ${res.statusCode}',
-              ),
+              content: Text(_formatSubmitError(res, l10n)),
               backgroundColor: _errorColor,
             ),
           );
         }
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.settingsRequestTimeout),
+            backgroundColor: const Color(0xFFDC3545),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -378,6 +389,18 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     }
   }
 
+  String _formatSubmitError(http.Response res, AppLocalizations l10n) {
+    final body = res.body.trim();
+    if (res.statusCode == 503 ||
+        body.contains('<!DOCTYPE html') ||
+        body.contains('<html') ||
+        body.contains('Service Suspended')) {
+      return l10n.settingsServerUnavailable;
+    }
+
+    return '${l10n.alertnessSubmitFailedStatus} ${res.statusCode}';
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -387,6 +410,12 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final showIntro =
+        !_testStarted &&
+        _reactionTimes.isEmpty &&
+        _currentTrial == 0 &&
+        _resultMessage.isEmpty;
+
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
@@ -405,21 +434,29 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            MediaQuery.of(context).viewPadding.bottom + 32,
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                _resultMessage.isEmpty
-                    ? l10n.alertnessTapToStart
-                    : _resultMessage,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: _isError ? _errorColor : _primaryColor,
+              if (showIntro)
+                _buildIntroCard(l10n)
+              else
+                Text(
+                  _resultMessage.isEmpty
+                      ? l10n.alertnessTapToStart
+                      : _resultMessage,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: _isError ? _errorColor : _primaryColor,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
               const SizedBox(height: 40),
               GestureDetector(
                 onTap: _boxTapped,
@@ -476,6 +513,54 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildIntroCard(AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.touch_app_outlined, color: _primaryColor, size: 28),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  l10n.alertnessIntroTitle,
+                  style: TextStyle(
+                    color: _primaryColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            l10n.alertnessIntroBody,
+            style: TextStyle(
+              color: _primaryColor.withValues(alpha: 0.82),
+              fontSize: 16,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -20,7 +22,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _bmiController = TextEditingController();
 
   bool _isLoading = false;
-  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
+  static const Duration _requestTimeout = Duration(seconds: 60);
+  final String baseUrl = ApiConfig.baseUrl;
   String? _existingRecordId;
 
   // 定義顏色和樣式
@@ -54,18 +57,20 @@ class _SettingsPageState extends State<SettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isLoading = true);
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/users_body_info/?user_id=${widget.userId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final res = await http
+          .get(
+            Uri.parse('$baseUrl/users_body_info/?user_id=${widget.userId}'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(_requestTimeout);
 
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
         if (data.isNotEmpty) {
           final userData = data[0];
-          _existingRecordId = userData['id']?.toString();
+          _existingRecordId = userData['user_id']?.toString();
           setState(() {
-            _gender = userData['gender'] ?? null;
+            _gender = userData['gender'];
             _ageController.text = userData['age']?.toString() ?? '';
             _heightController.text = userData['height']?.toString() ?? '';
             _weightController.text = userData['weight']?.toString() ?? '';
@@ -84,6 +89,12 @@ class _SettingsPageState extends State<SettingsPage> {
           );
         }
       }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.settingsRequestTimeout)));
+      }
     } catch (e) {
       print("讀取資料錯誤：$e");
       if (mounted) {
@@ -92,7 +103,9 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -119,23 +132,16 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       http.Response res;
 
-      if (_existingRecordId != null) {
-        res = await http.put(
-          Uri.parse('$baseUrl/users_body_info/${_existingRecordId!}/'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        );
-      } else {
-        res = await http.post(
-          Uri.parse('$baseUrl/users_body_info/'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(body),
-        );
+      res = await http
+          .post(
+            Uri.parse('$baseUrl/users_body_info/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(_requestTimeout);
 
-        if (res.statusCode == 200 || res.statusCode == 201) {
-          final savedData = jsonDecode(res.body);
-          _existingRecordId = savedData['id']?.toString();
-        }
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        _existingRecordId = widget.userId;
       }
 
       if (res.statusCode == 200 || res.statusCode == 201) {
@@ -147,9 +153,19 @@ class _SettingsPageState extends State<SettingsPage> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("${l10n.settingsSaveFailed}: ${res.body}")),
+            SnackBar(
+              content: Text(
+                "${l10n.settingsSaveFailed}: ${_formatServerError(res.body, l10n)}",
+              ),
+            ),
           );
         }
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.settingsRequestTimeout)));
       }
     } catch (e) {
       if (mounted) {
@@ -158,8 +174,31 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  String _formatServerError(String rawBody, AppLocalizations l10n) {
+    final body = rawBody.trim();
+    if (body.isEmpty) return l10n.settingsServerUnavailable;
+    if (body.contains('<!DOCTYPE html') ||
+        body.contains('<html') ||
+        body.contains('Service Suspended')) {
+      return l10n.settingsServerUnavailable;
+    }
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['detail'] != null) {
+        return decoded['detail'].toString();
+      }
+    } catch (_) {
+      // Keep the original text for non-JSON API errors.
+    }
+
+    return body.length > 160 ? '${body.substring(0, 160)}...' : body;
   }
 
   @override
@@ -190,7 +229,12 @@ class _SettingsPageState extends State<SettingsPage> {
           _isLoading && _existingRecordId == null
               ? Center(child: CircularProgressIndicator(color: _accentColor))
               : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  24,
+                  24,
+                  MediaQuery.of(context).viewPadding.bottom + 32,
+                ),
                 child: Form(
                   key: _formKey,
                   child: Column(

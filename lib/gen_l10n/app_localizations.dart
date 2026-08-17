@@ -1067,11 +1067,41 @@ abstract class AppLocalizations {
   /// **'Data loading error'**
   String get settingsLoadError;
 
+  /// No description provided for @settingsServerUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The server is currently unavailable. Please try again later or contact the administrator.'**
+  String get settingsServerUnavailable;
+
+  /// No description provided for @settingsRequestTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The server response timed out. Please check your network and try again.'**
+  String get settingsRequestTimeout;
+
   /// No description provided for @completeRequiredFieldsAndGender.
   ///
   /// In en, this message translates to:
   /// **'Please fill in all required fields and select gender.'**
   String get completeRequiredFieldsAndGender;
+
+  /// No description provided for @welcomeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to WakeMate'**
+  String get welcomeTitle;
+
+  /// No description provided for @welcomeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'WakeMate helps you record daily caffeine intake, sleep, and alertness, and uses personalized analysis to help you understand how caffeine may affect your daily routine and mental state.'**
+  String get welcomeBody;
+
+  /// No description provided for @welcomeFirstSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'For first-time use, please complete your basic profile first. After that, you can start recording daily caffeine intake and alertness tests.'**
+  String get welcomeFirstSteps;
 
   /// No description provided for @baselineQuestionnaireTitle.
   ///
@@ -1144,6 +1174,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Notifications'**
   String get notificationCenterTitle;
+
+  /// No description provided for @alertnessIntroTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Alertness Test'**
+  String get alertnessIntroTitle;
+
+  /// No description provided for @alertnessIntroBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You will complete 6 alertness test trials.\n\nDuring the test, the color on the screen will change at random times. When you see the prompt, press the button as quickly as possible.\n\nThe system records your reaction time to estimate your current alertness.\n\nWhen you are ready, tap Start Test.'**
+  String get alertnessIntroBody;
 
   /// No description provided for @alertnessTapToStart.
   ///

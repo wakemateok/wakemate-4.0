@@ -265,87 +265,94 @@ class _HomePageState extends State<HomePage> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: _cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (BuildContext context) {
+        final bottomPadding = MediaQuery.of(context).viewPadding.bottom + 32;
+
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 15, bottom: 25),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 45,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.only(top: 15, bottom: bottomPadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 45,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.addData,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: _primaryColor,
+                  const SizedBox(height: 20),
+                  Text(
+                    l10n.addData,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor,
+                    ),
                   ),
-                ),
-                const Divider(thickness: 0.8),
-                _buildOptionTile(
-                  title: l10n.targetWakePeriod,
-                  icon: Icons.wb_sunny_outlined,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => TargetWakeTimePage(
-                              userId: widget.userId,
-                              selectedDate: _selectedDate,
-                            ),
-                      ),
-                    ).then((_) => _loadDailyStats());
-                  },
-                ),
-                _buildOptionTile(
-                  title: l10n.actualSleepPeriod,
-                  icon: Icons.bed_outlined,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => ActualSleepTimePage(
-                              userId: widget.userId,
-                              selectedDate: _selectedDate,
-                            ),
-                      ),
-                    ).then((_) => _loadDailyStats());
-                  },
-                ),
-                _buildOptionTile(
-                  title: l10n.addCaffeineRecord,
-                  icon: Icons.local_cafe_outlined,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => CaffeineLogPage(
-                              userId: widget.userId,
-                              selectedDate: _selectedDate,
-                            ),
-                      ),
-                    ).then((_) => _loadDailyStats());
-                  },
-                ),
-              ],
+                  const Divider(thickness: 0.8),
+                  _buildOptionTile(
+                    title: l10n.targetWakePeriod,
+                    icon: Icons.wb_sunny_outlined,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => TargetWakeTimePage(
+                                userId: widget.userId,
+                                selectedDate: _selectedDate,
+                              ),
+                        ),
+                      ).then((_) => _loadDailyStats());
+                    },
+                  ),
+                  _buildOptionTile(
+                    title: l10n.actualSleepPeriod,
+                    icon: Icons.bed_outlined,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => ActualSleepTimePage(
+                                userId: widget.userId,
+                                selectedDate: _selectedDate,
+                              ),
+                        ),
+                      ).then((_) => _loadDailyStats());
+                    },
+                  ),
+                  _buildOptionTile(
+                    title: l10n.addCaffeineRecord,
+                    icon: Icons.local_cafe_outlined,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => CaffeineLogPage(
+                                userId: widget.userId,
+                                selectedDate: _selectedDate,
+                              ),
+                        ),
+                      ).then((_) => _loadDailyStats());
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );

@@ -510,8 +510,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsLoadError => 'Data loading error';
 
   @override
+  String get settingsServerUnavailable =>
+      'The server is currently unavailable. Please try again later or contact the administrator.';
+
+  @override
+  String get settingsRequestTimeout =>
+      'The server response timed out. Please check your network and try again.';
+
+  @override
   String get completeRequiredFieldsAndGender =>
       'Please fill in all required fields and select gender.';
+
+  @override
+  String get welcomeTitle => 'Welcome to WakeMate';
+
+  @override
+  String get welcomeBody =>
+      'WakeMate helps you record daily caffeine intake, sleep, and alertness, and uses personalized analysis to help you understand how caffeine may affect your daily routine and mental state.';
+
+  @override
+  String get welcomeFirstSteps =>
+      'For first-time use, please complete your basic profile first. After that, you can start recording daily caffeine intake and alertness tests.';
 
   @override
   String get baselineQuestionnaireTitle => 'Baseline Research Questionnaire';
@@ -552,6 +571,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationCenterTitle => 'Notifications';
+
+  @override
+  String get alertnessIntroTitle => 'Alertness Test';
+
+  @override
+  String get alertnessIntroBody =>
+      'You will complete 6 alertness test trials.\n\nDuring the test, the color on the screen will change at random times. When you see the prompt, press the button as quickly as possible.\n\nThe system records your reaction time to estimate your current alertness.\n\nWhen you are ready, tap Start Test.';
 
   @override
   String get alertnessTapToStart => 'Tap Start';

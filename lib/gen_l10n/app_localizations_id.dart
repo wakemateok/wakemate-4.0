@@ -509,8 +509,27 @@ class AppLocalizationsId extends AppLocalizations {
   String get settingsLoadError => 'Kesalahan saat memuat data';
 
   @override
+  String get settingsServerUnavailable =>
+      'Server saat ini tidak tersedia. Coba lagi nanti atau hubungi administrator.';
+
+  @override
+  String get settingsRequestTimeout =>
+      'Respons server terlalu lama. Periksa jaringan Anda lalu coba lagi.';
+
+  @override
   String get completeRequiredFieldsAndGender =>
       'Harap isi semua kolom wajib dan pilih jenis kelamin.';
+
+  @override
+  String get welcomeTitle => 'Selamat datang di WakeMate';
+
+  @override
+  String get welcomeBody =>
+      'WakeMate membantu Anda mencatat asupan kafein harian, tidur, dan kondisi kewaspadaan, lalu menggunakan analisis personal untuk membantu memahami pengaruh kafein terhadap rutinitas dan kondisi mental harian.';
+
+  @override
+  String get welcomeFirstSteps =>
+      'Saat pertama kali menggunakan aplikasi, lengkapi data dasar terlebih dahulu. Setelah itu, Anda dapat mulai mencatat asupan kafein harian dan melakukan tes kewaspadaan.';
 
   @override
   String get baselineQuestionnaireTitle => 'Kuesioner Awal Penelitian';
@@ -552,6 +571,13 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get notificationCenterTitle => 'Notifikasi';
+
+  @override
+  String get alertnessIntroTitle => 'Tes Kewaspadaan';
+
+  @override
+  String get alertnessIntroBody =>
+      'Anda akan menjalani 6 kali tes kewaspadaan.\n\nSelama tes, warna pada layar akan berubah secara acak. Saat melihat instruksi, tekan tombol secepat mungkin.\n\nSistem akan mencatat waktu reaksi Anda untuk menilai kondisi kewaspadaan saat ini.\n\nJika sudah siap, tekan Mulai Tes.';
 
   @override
   String get alertnessTapToStart => 'Ketuk Mulai';

@@ -5,7 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:my_app/config/questionnaire_links.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
-const baselineQuestionnairePromptSeenKey = 'baseline_questionnaire_prompt_seen';
+const baselineQuestionnairePromptSeenKey =
+    'baseline_questionnaire_prompt_seen_v2';
 
 class QuestionnaireGate extends StatefulWidget {
   final Widget child;
@@ -159,11 +160,46 @@ class _QuestionnairePromptPageState extends State<QuestionnairePromptPage> {
                   ),
                   const SizedBox(height: 20),
                   Text(
+                    l10n.welcomeTitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _primaryColor,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    l10n.welcomeBody,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _primaryColor.withValues(alpha: 0.84),
+                      fontSize: 16,
+                      height: 1.55,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    l10n.welcomeFirstSteps,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _primaryColor.withValues(alpha: 0.78),
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Divider(
+                    color: _primaryColor.withValues(alpha: 0.14),
+                    thickness: 1,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
                     l10n.baselineQuestionnaireTitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _primaryColor,
-                      fontSize: 26,
+                      fontSize: 22,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

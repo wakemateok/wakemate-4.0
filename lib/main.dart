@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/providers/locale_provider.dart';
@@ -22,6 +24,8 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static const double _minimumBottomReservedSpace = 48;
+
   @override
   Widget build(BuildContext context) {
     return Consumer<LocaleProvider>(
@@ -39,6 +43,29 @@ class MyApp extends StatelessWidget {
           locale: provider.locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            final bottomReserve =
+                mediaQuery.viewInsets.bottom > 0
+                    ? mediaQuery.padding.bottom
+                    : math.max(
+                      mediaQuery.padding.bottom,
+                      _minimumBottomReservedSpace,
+                    );
+
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                padding: mediaQuery.padding.copyWith(bottom: bottomReserve),
+                viewPadding: mediaQuery.viewPadding.copyWith(
+                  bottom: math.max(
+                    mediaQuery.viewPadding.bottom,
+                    bottomReserve,
+                  ),
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           home: const QuestionnaireGate(child: AuthWrapper()),
         );
       },

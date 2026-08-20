@@ -23,6 +23,49 @@ List<Map<String, dynamic>> filterRecommendationsForDate(
       .toList(growable: false);
 }
 
+List<Map<String, dynamic>> filterActiveRecommendations(
+  Iterable<Map<String, dynamic>> entries,
+) {
+  return entries
+      .where((item) => item['is_active'] != false)
+      .where((item) => recommendationTiming(item) != null)
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> latestRecommendationBatch(
+  Iterable<Map<String, dynamic>> entries,
+) {
+  final active = filterActiveRecommendations(entries);
+  if (active.isEmpty) return [];
+
+  active.sort((a, b) {
+    final aTime = recommendationVersionTime(a);
+    final bTime = recommendationVersionTime(b);
+    if (aTime == null && bTime == null) return 0;
+    if (aTime == null) return 1;
+    if (bTime == null) return -1;
+    return bTime.compareTo(aTime);
+  });
+
+  final newest = active.first;
+  final newestRunId = newest['run_id']?.toString();
+  if (newestRunId != null && newestRunId.isNotEmpty) {
+    return dedupeRecommendations(
+      active.where((item) => item['run_id']?.toString() == newestRunId),
+    );
+  }
+
+  final newestVersion = recommendationVersionTime(newest);
+  if (newestVersion == null) return dedupeRecommendations(active);
+
+  return dedupeRecommendations(
+    active.where((item) {
+      final version = recommendationVersionTime(item);
+      return version != null && version.isAtSameMomentAs(newestVersion);
+    }),
+  );
+}
+
 List<Map<String, dynamic>> dedupeRecommendations(
   Iterable<Map<String, dynamic>> entries,
 ) {
@@ -73,15 +116,15 @@ String? _recommendationKey(Map<String, dynamic> item) {
 }
 
 bool _isNewer(Map<String, dynamic> current, Map<String, dynamic> existing) {
-  final currentTime = _versionTime(current);
-  final existingTime = _versionTime(existing);
+  final currentTime = recommendationVersionTime(current);
+  final existingTime = recommendationVersionTime(existing);
   if (currentTime == null && existingTime == null) return true;
   if (currentTime == null) return false;
   if (existingTime == null) return true;
   return currentTime.isAfter(existingTime);
 }
 
-DateTime? _versionTime(Map<String, dynamic> item) {
+DateTime? recommendationVersionTime(Map<String, dynamic> item) {
   for (final key in ['updated_at', 'source_data_latest_at', 'created_at']) {
     final parsed = DateTime.tryParse(item[key]?.toString() ?? '');
     if (parsed != null) return parsed.toUtc();

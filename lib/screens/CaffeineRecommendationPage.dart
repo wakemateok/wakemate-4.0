@@ -100,7 +100,13 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
       currentHistory = [];
     }
 
-    final targetDateStr = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
+    final replacementDates = <String>{
+      DateFormat('yyyy-MM-dd').format(widget.selectedDate),
+      ...newEntries
+          .map((item) => recommendationTiming(item))
+          .whereType<DateTime>()
+          .map((time) => DateFormat('yyyy-MM-dd').format(time)),
+    };
 
     currentHistory =
         currentHistory.where((item) {
@@ -109,20 +115,22 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
           if (timingStr.isEmpty) return true;
           final parsed = apiTimestampToTaipei(timingStr);
           if (parsed == null) return true;
-          return DateFormat('yyyy-MM-dd').format(parsed) != targetDateStr;
+          return !replacementDates.contains(
+            DateFormat('yyyy-MM-dd').format(parsed),
+          );
         }).toList();
 
     currentHistory.addAll(dedupeRecommendations(newEntries));
     await prefs.setString(
       'caffeine_recommendations',
-      json.encode(currentHistory),
+      json.encode(dedupeRecommendations(currentHistory)),
     );
   }
 
   Future<List<Map<String, dynamic>>> _fetchRecommendations({
     required String recommendationFailedLabel,
   }) async {
-    const fetchTimeout = Duration(seconds: 20);
+    const fetchTimeout = Duration(seconds: 60);
     final recommendationUrl =
         '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
     final response = await http
@@ -140,7 +148,9 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     }
 
     final data = json.decode(utf8.decode(response.bodyBytes));
-    return recommendationMapsFrom(data);
+    return dedupeRecommendations(
+      filterActiveRecommendations(recommendationMapsFrom(data)),
+    );
   }
 
   List<Map<String, dynamic>> _selectedDateDedupedEntries(
@@ -149,6 +159,19 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     return dedupeRecommendations(
       filterRecommendationsForDate(entries, widget.selectedDate),
     );
+  }
+
+  List<Map<String, dynamic>> _displayableEntriesAfterCalculation(
+    List<Map<String, dynamic>> fetchedEntries,
+  ) {
+    final selectedEntries = _selectedDateDedupedEntries(fetchedEntries);
+    if (selectedEntries.isNotEmpty) return selectedEntries;
+    return latestRecommendationBatch(fetchedEntries);
+  }
+
+  DateTime _displayDateForEntries(List<Map<String, dynamic>> entries) {
+    if (entries.isEmpty) return widget.selectedDate;
+    return recommendationTiming(entries.first) ?? widget.selectedDate;
   }
 
   Future<bool> _useExistingRecommendationsIfAvailable({
@@ -198,7 +221,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         if (usedExisting) return;
       }
 
-      const calculationTimeout = Duration(seconds: 90);
+      const calculationTimeout = Duration(seconds: 120);
       final calculationUrl =
           '${ApiConfig.baseUrl}/calculate/?user_id=${widget.userId}';
       final calculationResponse = await http
@@ -217,11 +240,10 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         return;
       }
 
-      final entries = _selectedDateDedupedEntries(
-        await _fetchRecommendations(
-          recommendationFailedLabel: l10n.recommendationFailed,
-        ),
+      final fetchedEntries = await _fetchRecommendations(
+        recommendationFailedLabel: l10n.recommendationFailed,
       );
+      final entries = _displayableEntriesAfterCalculation(fetchedEntries);
 
       if (entries.isEmpty) {
         await _configureNotifications(
@@ -246,7 +268,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
           builder:
               (context) => CaffeineHistoryPage(
                 userId: widget.userId,
-                selectedDate: widget.selectedDate,
+                selectedDate: _displayDateForEntries(entries),
               ),
         ),
       );

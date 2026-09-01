@@ -195,7 +195,7 @@ class CustomDrawer extends StatelessWidget {
                     _buildDrawerItem(
                       context,
                       icon: Icons.bolt_outlined,
-                      title: l10n.alertnessTest,
+                      title: l10n.briefAlertnessTest,
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -203,6 +203,22 @@ class CustomDrawer extends StatelessWidget {
                           MaterialPageRoute(
                             builder:
                                 (context) => AlertnessTestPage(userId: userId),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.timer_outlined,
+                      title: l10n.pvtbAlertnessTest,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) =>
+                                    AlertnessTestPage.pvtb(userId: userId),
                           ),
                         );
                       },

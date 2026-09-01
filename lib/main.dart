@@ -24,7 +24,7 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  static const double _minimumBottomReservedSpace = 48;
+  static const double _minimumBottomReservedSpace = 64;
 
   @override
   Widget build(BuildContext context) {

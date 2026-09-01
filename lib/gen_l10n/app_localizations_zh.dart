@@ -63,6 +63,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get alertnessTest => '清醒度测试';
 
   @override
+  String get briefAlertnessTest => '清醒度测试（短版）';
+
+  @override
+  String get pvtbAlertnessTest => '三分钟清醒度测试';
+
+  @override
   String get logout => '登出';
 
   @override
@@ -558,6 +564,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '接下来将进行6次的清醒度测试。\n\n测试过程中，画面会随机出现颜色变化。当您看到提示时，请「尽可能快速按下按钮」。\n\n系统将记录您的反应时间，用来评估目前的清醒状态。\n\n准备好后，请按下「开始测试」。';
 
   @override
+  String get pvtbAlertnessIntroTitle => '三分钟清醒度测试（PVT-B）';
+
+  @override
+  String get pvtbAlertnessIntroBody =>
+      '接下来将进行三分钟清醒度测试。\n\n测试过程中，刺激会以 1 到 4 秒的随机间隔出现。当画面出现提示时，请尽可能快速按下按钮。\n\n系统会记录平均反应时间、超过 500 毫秒的反应次数，以及太早按下的次数，供后续与短版测试和文献结果比较。\n\n准备好后，请按下「开始测试」。';
+
+  @override
   String get alertnessTapToStart => '点击开始';
 
   @override
@@ -570,6 +583,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get alertnessTooEarly => '太快了，请再试一次。';
 
   @override
+  String get alertnessNoResponse => '未在时间内反应。';
+
+  @override
   String get alertnessTrialPrefix => '第';
 
   @override
@@ -577,6 +593,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get millisecondsUnit => '毫秒';
+
+  @override
+  String get alertnessTimeRemaining => '剩余时间';
+
+  @override
+  String get alertnessCompletedTrials => '完成次数';
+
+  @override
+  String get alertnessLapses => '反应超过 500 毫秒次数';
+
+  @override
+  String get alertnessFalseStarts => '太早按下次数';
 
   @override
   String get alertnessResultTitle => '测试结果';
@@ -705,6 +733,12 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get alertnessTest => '清醒度測試';
+
+  @override
+  String get briefAlertnessTest => '清醒度測試（短版）';
+
+  @override
+  String get pvtbAlertnessTest => '三分鐘清醒度測試';
 
   @override
   String get logout => '登出';
@@ -1202,6 +1236,13 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
       '接下來將進行6次的清醒度測試。\n\n測試過程中，畫面會隨機出現顏色變化。當您看到提示時，請「盡可能快速按下按鈕」。\n\n系統將記錄您的反應時間，用來評估目前的清醒狀態。\n\n準備好後，請按下「開始測試」。';
 
   @override
+  String get pvtbAlertnessIntroTitle => '三分鐘清醒度測試（PVT-B）';
+
+  @override
+  String get pvtbAlertnessIntroBody =>
+      '接下來將進行三分鐘清醒度測試。\n\n測試過程中，刺激會以 1 到 4 秒的隨機間隔出現。當畫面出現提示時，請盡可能快速按下按鈕。\n\n系統會記錄平均反應時間、超過 500 毫秒的反應次數，以及太早按下的次數，供後續與短版測試和文獻結果比較。\n\n準備好後，請按下「開始測試」。';
+
+  @override
   String get alertnessTapToStart => '點擊開始';
 
   @override
@@ -1214,6 +1255,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get alertnessTooEarly => '太快了，請再試一次。';
 
   @override
+  String get alertnessNoResponse => '未在時間內反應。';
+
+  @override
   String get alertnessTrialPrefix => '第';
 
   @override
@@ -1221,6 +1265,18 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get millisecondsUnit => '毫秒';
+
+  @override
+  String get alertnessTimeRemaining => '剩餘時間';
+
+  @override
+  String get alertnessCompletedTrials => '完成次數';
+
+  @override
+  String get alertnessLapses => '反應超過 500 毫秒次數';
+
+  @override
+  String get alertnessFalseStarts => '太早按下次數';
 
   @override
   String get alertnessResultTitle => '測試結果';

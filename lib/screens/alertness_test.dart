@@ -6,10 +6,17 @@ import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
+enum AlertnessTestVersion { brief, pvtb3Minute }
+
 class AlertnessTestPage extends StatefulWidget {
   final String userId;
+  final AlertnessTestVersion version;
 
-  const AlertnessTestPage({super.key, required this.userId});
+  const AlertnessTestPage({super.key, required this.userId})
+    : version = AlertnessTestVersion.brief;
+
+  const AlertnessTestPage.pvtb({super.key, required this.userId})
+    : version = AlertnessTestVersion.pvtb3Minute;
 
   @override
   State<AlertnessTestPage> createState() => _AlertnessTestPageState();
@@ -23,15 +30,22 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   final Color _backgroundColor = const Color(0xFFF0F2F5); // 淺灰色背景
   final Color _boxDefaultColor = const Color(0xFF5E91B3); // 淺藍色
 
+  final Random _random = Random();
   Timer? _timer;
+  Timer? _durationTimer;
+  Timer? _clockTimer;
+  Timer? _counterTimer;
   bool _isWaiting = true;
   bool _testStarted = false;
   Color _boxColor = const Color(0xFF5E91B3);
   String _resultMessage = "";
   DateTime? _startTime;
+  DateTime? _testDeadline;
   final List<Duration> _reactionTimes = [];
   int _currentTrial = 0;
-  final int _totalTrials = 6;
+  Duration _remainingTime = Duration.zero;
+  int _stimulusElapsedMs = 0;
+  bool _hasCompleted = false;
   bool _isError = false;
 
   int _lapses = 0;
@@ -41,105 +55,273 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   final String baseUrl = ApiConfig.baseUrl;
   int? _selectedKssLevel;
 
+  bool get _isPvtB => widget.version == AlertnessTestVersion.pvtb3Minute;
+
+  int? get _trialLimit => _isPvtB ? null : 6;
+
+  Duration get _testDuration =>
+      _isPvtB ? const Duration(minutes: 3) : Duration.zero;
+
+  Duration get _responseWindow =>
+      _isPvtB ? const Duration(seconds: 30) : const Duration(seconds: 2);
+
+  Duration get _feedbackDelay => const Duration(seconds: 1);
+
+  Duration get _falseStartDelay =>
+      _isPvtB ? const Duration(seconds: 1) : const Duration(milliseconds: 1500);
+
+  Duration get _reactionAdjustment =>
+      _isPvtB ? Duration.zero : const Duration(milliseconds: 100);
+
+  String get _deviceLabel => _isPvtB ? 'Mobile PVT-B 3min' : 'Mobile';
+
   void _startTest() {
     final l10n = AppLocalizations.of(context)!;
+    _cancelAllTimers();
     setState(() {
       _reactionTimes.clear();
       _currentTrial = 0;
       _lapses = 0;
       _falseStarts = 0;
       _resultMessage = l10n.alertnessWait;
+      _isWaiting = true;
+      _testStarted = true;
+      _boxColor = _boxDefaultColor;
+      _isError = false;
+      _stimulusElapsedMs = 0;
+      _hasCompleted = false;
+      _testDeadline = _isPvtB ? DateTime.now().add(_testDuration) : null;
+      _remainingTime = _testDuration;
     });
+
+    if (_isPvtB) {
+      _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _refreshRemainingTime();
+      });
+      _durationTimer = Timer(_testDuration, _testCompleted);
+    }
+
     _runTestSequence();
   }
 
   void _runTestSequence() {
-    if (_currentTrial >= _totalTrials) {
+    if (!mounted || _hasCompleted) return;
+
+    final trialLimit = _trialLimit;
+    if (_timeExpired || (trialLimit != null && _currentTrial >= trialLimit)) {
       _testCompleted();
       return;
     }
 
+    _timer?.cancel();
+    _counterTimer?.cancel();
     setState(() {
       _isWaiting = true;
       _testStarted = true;
       _boxColor = _boxDefaultColor;
       _isError = false;
+      _stimulusElapsedMs = 0;
+      _resultMessage = AppLocalizations.of(context)!.alertnessWait;
     });
 
-    int randomDelay = 1000 + Random().nextInt(4000);
-    _timer = Timer(Duration(milliseconds: randomDelay), () {
-      if (!mounted) return;
+    final randomDelay = _boundedByRemaining(_randomInterStimulusDelay());
+    if (_timeExpired) {
+      _testCompleted();
+      return;
+    }
+
+    _timer = Timer(randomDelay, () {
+      if (!mounted || _hasCompleted) return;
+      if (_timeExpired) {
+        _testCompleted();
+        return;
+      }
+
       final l10n = AppLocalizations.of(context)!;
       setState(() {
         _isWaiting = false;
         _boxColor = _successColor;
         _startTime = DateTime.now();
+        _stimulusElapsedMs = 0;
         _resultMessage = l10n.alertnessTapNow;
       });
 
-      _timer = Timer(const Duration(milliseconds: 2000), () {
-        if (!mounted) return;
+      if (_isPvtB) {
+        _startStimulusCounter();
+      }
+
+      final responseWindow = _boundedByRemaining(_responseWindow);
+      if (responseWindow <= Duration.zero) {
+        _testCompleted();
+        return;
+      }
+
+      _timer = Timer(responseWindow, () {
+        if (!mounted || _hasCompleted) return;
         if (_boxColor == _successColor) {
+          _counterTimer?.cancel();
           _lapses++;
-          _runTestSequence();
+          _currentTrial++;
+          setState(() {
+            _isWaiting = true;
+            _boxColor = _boxDefaultColor;
+            _isError = false;
+            _stimulusElapsedMs = 0;
+            _resultMessage = l10n.alertnessNoResponse;
+          });
+          _scheduleNextTrial(_feedbackDelay);
         }
       });
     });
   }
 
   void _boxTapped() {
-    if (!_testStarted) return;
+    if (!_testStarted || _hasCompleted) return;
     final l10n = AppLocalizations.of(context)!;
 
     if (_isWaiting) {
       _timer?.cancel();
+      _counterTimer?.cancel();
+      _falseStarts++;
       setState(() {
-        _testStarted = false;
         _boxColor = _errorColor;
         _isError = true;
+        _isWaiting = true;
+        _stimulusElapsedMs = 0;
         _resultMessage = l10n.alertnessTooEarly;
-        _falseStarts++;
       });
 
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted) {
-          _runTestSequence();
-        }
-      });
+      _scheduleNextTrial(_falseStartDelay);
     } else {
       _timer?.cancel();
+      _counterTimer?.cancel();
       final reaction = DateTime.now().difference(_startTime!);
+      final rawAdjustedReaction = reaction - _reactionAdjustment;
+      final adjustedReaction =
+          rawAdjustedReaction.isNegative ? Duration.zero : rawAdjustedReaction;
 
-      // 在此處減去 100 毫秒來調整反應時間
-      final adjustedReaction = reaction - const Duration(milliseconds: 100);
+      if (_isPvtB && adjustedReaction < const Duration(milliseconds: 100)) {
+        _falseStarts++;
+        _currentTrial++;
+        setState(() {
+          _isWaiting = true;
+          _boxColor = _errorColor;
+          _isError = true;
+          _stimulusElapsedMs = adjustedReaction.inMilliseconds;
+          _resultMessage = l10n.alertnessTooEarly;
+        });
+        _scheduleNextTrial(_feedbackDelay);
+        return;
+      }
 
       _reactionTimes.add(adjustedReaction);
+      if (_isPvtB && adjustedReaction > const Duration(milliseconds: 500)) {
+        _lapses++;
+      }
       _currentTrial++;
 
       setState(() {
-        _testStarted = false;
+        _isWaiting = true;
         _boxColor = _boxDefaultColor;
         _isError = false;
+        _stimulusElapsedMs = adjustedReaction.inMilliseconds;
         _resultMessage =
             "${l10n.alertnessTrialPrefix}$_currentTrial${l10n.alertnessTrialSuffix}: ${adjustedReaction.inMilliseconds} ${l10n.millisecondsUnit}";
       });
 
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        if (mounted) {
-          _runTestSequence();
-        }
-      });
+      _scheduleNextTrial(_feedbackDelay);
     }
   }
 
   void _testCompleted() {
+    if (_hasCompleted) return;
+    _cancelAllTimers();
+    if (!mounted) return;
+    _hasCompleted = true;
+
     setState(() {
       _testStarted = false;
+      _isWaiting = true;
       _boxColor = _boxDefaultColor;
+      _stimulusElapsedMs = 0;
+      if (_isPvtB) {
+        _remainingTime = Duration.zero;
+      }
     });
 
     final avgTime = _averageReactionTime();
     _showResultDialog(avgTime);
+  }
+
+  Duration _randomInterStimulusDelay() {
+    if (_isPvtB) {
+      return Duration(milliseconds: _random.nextInt(3001));
+    }
+
+    return Duration(milliseconds: 1000 + _random.nextInt(4000));
+  }
+
+  bool get _timeExpired {
+    if (!_isPvtB || _testDeadline == null) return false;
+    return !DateTime.now().isBefore(_testDeadline!);
+  }
+
+  Duration _boundedByRemaining(Duration duration) {
+    if (!_isPvtB || _testDeadline == null) return duration;
+
+    final remaining = _testDeadline!.difference(DateTime.now());
+    if (remaining <= Duration.zero) return Duration.zero;
+    return remaining < duration ? remaining : duration;
+  }
+
+  void _scheduleNextTrial(Duration delay) {
+    if (_hasCompleted) return;
+
+    final nextDelay = _boundedByRemaining(delay);
+    if (nextDelay <= Duration.zero) {
+      _testCompleted();
+      return;
+    }
+
+    _timer = Timer(nextDelay, () {
+      if (mounted) {
+        _runTestSequence();
+      }
+    });
+  }
+
+  void _startStimulusCounter() {
+    _counterTimer?.cancel();
+    _counterTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!mounted || _startTime == null || _isWaiting || _hasCompleted) {
+        return;
+      }
+
+      setState(() {
+        _stimulusElapsedMs =
+            DateTime.now().difference(_startTime!).inMilliseconds;
+      });
+    });
+  }
+
+  void _refreshRemainingTime() {
+    if (!mounted || !_isPvtB || !_testStarted || _testDeadline == null) return;
+
+    final remaining = _testDeadline!.difference(DateTime.now());
+    setState(() {
+      _remainingTime = remaining.isNegative ? Duration.zero : remaining;
+    });
+  }
+
+  void _cancelAllTimers() {
+    _timer?.cancel();
+    _timer = null;
+    _durationTimer?.cancel();
+    _durationTimer = null;
+    _clockTimer?.cancel();
+    _clockTimer = null;
+    _counterTimer?.cancel();
+    _counterTimer = null;
   }
 
   String _getKssDescription(int level, AppLocalizations l10n) {
@@ -192,21 +374,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
             child: ListBody(
               children: [
                 const SizedBox(height: 10),
-                Text(
-                  l10n.alertnessEachReactionTime,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF555555),
-                  ),
-                ),
-                ..._reactionTimes.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  Duration time = entry.value;
-                  return Text(
-                    "${l10n.alertnessTrialPrefix}${index + 1}${l10n.alertnessTrialSuffix}: ${time.inMilliseconds} ${l10n.millisecondsUnit}",
-                    style: const TextStyle(color: Color(0xFF777777)),
-                  );
-                }),
+                ..._buildResultSummary(l10n),
                 const Divider(
                   height: 30,
                   thickness: 1.5,
@@ -237,7 +405,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _primaryColor.withOpacity(0.5),
+                          color: _primaryColor.withValues(alpha: 0.5),
                         ),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -343,7 +511,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
               'lapses': lapses,
               'false_starts': falseStarts,
               'kss_level': kssLevel,
-              'device': 'Mobile',
+              'device': _deviceLabel,
               'test_at': DateTime.now().toUtc().toIso8601String(),
             }),
           )
@@ -403,13 +571,15 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _cancelAllTimers();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final pageTitle =
+        _isPvtB ? l10n.pvtbAlertnessTest : l10n.briefAlertnessTest;
     final showIntro =
         !_testStarted &&
         _reactionTimes.isEmpty &&
@@ -420,7 +590,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
       backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
-          l10n.alertnessTest,
+          pageTitle,
           style: TextStyle(
             color: _primaryColor,
             fontWeight: FontWeight.bold,
@@ -457,6 +627,10 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+              if (_isPvtB && _testStarted) ...[
+                const SizedBox(height: 20),
+                _buildProgressCard(l10n),
+              ],
               const SizedBox(height: 40),
               GestureDetector(
                 onTap: _boxTapped,
@@ -470,24 +644,14 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: _boxColor.withOpacity(0.4),
+                        color: _boxColor.withValues(alpha: 0.4),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
                     ],
                   ),
                   alignment: Alignment.center,
-                  child:
-                      !_testStarted
-                          ? Text(
-                            l10n.tapHere,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                          : const SizedBox.shrink(),
+                  child: _buildBoxContent(l10n),
                 ),
               ),
               const SizedBox(height: 40),
@@ -518,6 +682,11 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   }
 
   Widget _buildIntroCard(AppLocalizations l10n) {
+    final introTitle =
+        _isPvtB ? l10n.pvtbAlertnessIntroTitle : l10n.alertnessIntroTitle;
+    final introBody =
+        _isPvtB ? l10n.pvtbAlertnessIntroBody : l10n.alertnessIntroBody;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -541,7 +710,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  l10n.alertnessIntroTitle,
+                  introTitle,
                   style: TextStyle(
                     color: _primaryColor,
                     fontSize: 22,
@@ -553,7 +722,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
           ),
           const SizedBox(height: 14),
           Text(
-            l10n.alertnessIntroBody,
+            introBody,
             style: TextStyle(
               color: _primaryColor.withValues(alpha: 0.82),
               fontSize: 16,
@@ -563,5 +732,152 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildResultSummary(AppLocalizations l10n) {
+    if (_isPvtB) {
+      return [
+        _buildResultStat(l10n.alertnessCompletedTrials, '$_currentTrial'),
+        _buildResultStat(l10n.alertnessLapses, '$_lapses'),
+        _buildResultStat(l10n.alertnessFalseStarts, '$_falseStarts'),
+      ];
+    }
+
+    return [
+      Text(
+        l10n.alertnessEachReactionTime,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF555555),
+        ),
+      ),
+      ..._reactionTimes.asMap().entries.map((entry) {
+        final index = entry.key;
+        final time = entry.value;
+        return Text(
+          "${l10n.alertnessTrialPrefix}${index + 1}${l10n.alertnessTrialSuffix}: ${time.inMilliseconds} ${l10n.millisecondsUnit}",
+          style: const TextStyle(color: Color(0xFF777777)),
+        );
+      }),
+    ];
+  }
+
+  Widget _buildResultStat(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF555555),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            value,
+            style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressCard(AppLocalizations l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _primaryColor.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildProgressMetric(
+              l10n.alertnessTimeRemaining,
+              _formatDuration(_remainingTime),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 36,
+            color: _primaryColor.withValues(alpha: 0.12),
+          ),
+          Expanded(
+            child: _buildProgressMetric(
+              l10n.alertnessCompletedTrials,
+              '$_currentTrial',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressMetric(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: _primaryColor.withValues(alpha: 0.65),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: _primaryColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBoxContent(AppLocalizations l10n) {
+    if (!_testStarted) {
+      return Text(
+        l10n.tapHere,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+    }
+
+    if (_isPvtB && !_isWaiting) {
+      return Text(
+        '$_stimulusElapsedMs\n${l10n.millisecondsUnit}',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 38,
+          fontWeight: FontWeight.bold,
+          height: 1.15,
+        ),
+        textAlign: TextAlign.center,
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  String _formatDuration(Duration duration) {
+    final totalSeconds = duration.isNegative ? 0 : duration.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }

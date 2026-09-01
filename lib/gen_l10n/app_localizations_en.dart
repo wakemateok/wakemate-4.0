@@ -63,6 +63,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get alertnessTest => 'Alertness Test';
 
   @override
+  String get briefAlertnessTest => 'Alertness Test (Short)';
+
+  @override
+  String get pvtbAlertnessTest => '3-Minute Alertness Test';
+
+  @override
   String get logout => 'Log Out';
 
   @override
@@ -580,6 +586,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'You will complete 6 alertness test trials.\n\nDuring the test, the color on the screen will change at random times. When you see the prompt, press the button as quickly as possible.\n\nThe system records your reaction time to estimate your current alertness.\n\nWhen you are ready, tap Start Test.';
 
   @override
+  String get pvtbAlertnessIntroTitle => '3-Minute Alertness Test (PVT-B)';
+
+  @override
+  String get pvtbAlertnessIntroBody =>
+      'You will complete a 3-minute alertness test.\n\nDuring the test, stimuli appear after random intervals of 1 to 4 seconds. When the prompt appears, press the button as quickly as possible.\n\nThe system records average reaction time, responses over 500 ms, and early presses for later comparison with the short test and published results.\n\nWhen you are ready, tap Start Test.';
+
+  @override
   String get alertnessTapToStart => 'Tap Start';
 
   @override
@@ -592,6 +605,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get alertnessTooEarly => 'Too early. Try again.';
 
   @override
+  String get alertnessNoResponse => 'No response within the time limit.';
+
+  @override
   String get alertnessTrialPrefix => 'Trial';
 
   @override
@@ -599,6 +615,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get millisecondsUnit => 'ms';
+
+  @override
+  String get alertnessTimeRemaining => 'Time Remaining';
+
+  @override
+  String get alertnessCompletedTrials => 'Completed Trials';
+
+  @override
+  String get alertnessLapses => 'Responses over 500 ms';
+
+  @override
+  String get alertnessFalseStarts => 'Early Presses';
 
   @override
   String get alertnessResultTitle => 'Test Result';

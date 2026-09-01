@@ -209,6 +209,18 @@ abstract class AppLocalizations {
   /// **'Alertness Test'**
   String get alertnessTest;
 
+  /// No description provided for @briefAlertnessTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Alertness Test (Short)'**
+  String get briefAlertnessTest;
+
+  /// No description provided for @pvtbAlertnessTest.
+  ///
+  /// In en, this message translates to:
+  /// **'3-Minute Alertness Test'**
+  String get pvtbAlertnessTest;
+
   /// No description provided for @logout.
   ///
   /// In en, this message translates to:
@@ -1187,6 +1199,18 @@ abstract class AppLocalizations {
   /// **'You will complete 6 alertness test trials.\n\nDuring the test, the color on the screen will change at random times. When you see the prompt, press the button as quickly as possible.\n\nThe system records your reaction time to estimate your current alertness.\n\nWhen you are ready, tap Start Test.'**
   String get alertnessIntroBody;
 
+  /// No description provided for @pvtbAlertnessIntroTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'3-Minute Alertness Test (PVT-B)'**
+  String get pvtbAlertnessIntroTitle;
+
+  /// No description provided for @pvtbAlertnessIntroBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You will complete a 3-minute alertness test.\n\nDuring the test, stimuli appear after random intervals of 1 to 4 seconds. When the prompt appears, press the button as quickly as possible.\n\nThe system records average reaction time, responses over 500 ms, and early presses for later comparison with the short test and published results.\n\nWhen you are ready, tap Start Test.'**
+  String get pvtbAlertnessIntroBody;
+
   /// No description provided for @alertnessTapToStart.
   ///
   /// In en, this message translates to:
@@ -1211,6 +1235,12 @@ abstract class AppLocalizations {
   /// **'Too early. Try again.'**
   String get alertnessTooEarly;
 
+  /// No description provided for @alertnessNoResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'No response within the time limit.'**
+  String get alertnessNoResponse;
+
   /// No description provided for @alertnessTrialPrefix.
   ///
   /// In en, this message translates to:
@@ -1228,6 +1258,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ms'**
   String get millisecondsUnit;
+
+  /// No description provided for @alertnessTimeRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Time Remaining'**
+  String get alertnessTimeRemaining;
+
+  /// No description provided for @alertnessCompletedTrials.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed Trials'**
+  String get alertnessCompletedTrials;
+
+  /// No description provided for @alertnessLapses.
+  ///
+  /// In en, this message translates to:
+  /// **'Responses over 500 ms'**
+  String get alertnessLapses;
+
+  /// No description provided for @alertnessFalseStarts.
+  ///
+  /// In en, this message translates to:
+  /// **'Early Presses'**
+  String get alertnessFalseStarts;
 
   /// No description provided for @alertnessResultTitle.
   ///

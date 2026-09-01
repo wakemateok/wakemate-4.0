@@ -63,6 +63,12 @@ class AppLocalizationsId extends AppLocalizations {
   String get alertnessTest => 'Tes Kewaspadaan';
 
   @override
+  String get briefAlertnessTest => 'Tes Kewaspadaan (Singkat)';
+
+  @override
+  String get pvtbAlertnessTest => 'Tes Kewaspadaan 3 Menit';
+
+  @override
   String get logout => 'Keluar';
 
   @override
@@ -580,6 +586,13 @@ class AppLocalizationsId extends AppLocalizations {
       'Anda akan menjalani 6 kali tes kewaspadaan.\n\nSelama tes, warna pada layar akan berubah secara acak. Saat melihat instruksi, tekan tombol secepat mungkin.\n\nSistem akan mencatat waktu reaksi Anda untuk menilai kondisi kewaspadaan saat ini.\n\nJika sudah siap, tekan Mulai Tes.';
 
   @override
+  String get pvtbAlertnessIntroTitle => 'Tes Kewaspadaan 3 Menit (PVT-B)';
+
+  @override
+  String get pvtbAlertnessIntroBody =>
+      'Anda akan melakukan tes kewaspadaan selama tiga menit.\n\nSelama tes, stimulus akan muncul dengan interval acak 1 hingga 4 detik. Saat petunjuk muncul di layar, tekan tombol secepat mungkin.\n\nSistem akan mencatat waktu reaksi rata-rata, jumlah respons lebih dari 500 ms, dan jumlah tekanan terlalu awal untuk dibandingkan nanti dengan tes singkat dan hasil literatur.\n\nSaat siap, tekan Mulai Tes.';
+
+  @override
   String get alertnessTapToStart => 'Ketuk Mulai';
 
   @override
@@ -592,6 +605,9 @@ class AppLocalizationsId extends AppLocalizations {
   String get alertnessTooEarly => 'Terlalu cepat. Coba lagi.';
 
   @override
+  String get alertnessNoResponse => 'Tidak ada respons dalam batas waktu.';
+
+  @override
   String get alertnessTrialPrefix => 'Percobaan';
 
   @override
@@ -599,6 +615,18 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get millisecondsUnit => 'md';
+
+  @override
+  String get alertnessTimeRemaining => 'Sisa Waktu';
+
+  @override
+  String get alertnessCompletedTrials => 'Percobaan Selesai';
+
+  @override
+  String get alertnessLapses => 'Respons lebih dari 500 ms';
+
+  @override
+  String get alertnessFalseStarts => 'Tekanan terlalu awal';
 
   @override
   String get alertnessResultTitle => 'Hasil Tes';

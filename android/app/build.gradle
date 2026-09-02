@@ -25,6 +25,21 @@ android {
         multiDexEnabled true
     }
 
+    flavorDimensions "alertness"
+
+    productFlavors {
+        legacy {
+            dimension "alertness"
+            resValue "string", "app_name", "WakeMate"
+        }
+        pvtb {
+            dimension "alertness"
+            applicationIdSuffix ".pvtb"
+            versionNameSuffix "-pvtb"
+            resValue "string", "app_name", "WakeMate PVT-B"
+        }
+    }
+
     compileOptions {
         coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_17

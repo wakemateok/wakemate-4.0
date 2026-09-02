@@ -9,6 +9,11 @@ import 'package:my_app/screens/questionnaire_prompt_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomDrawer extends StatelessWidget {
+  static const String _alertnessMode = String.fromEnvironment(
+    'WAKEMATE_ALERTNESS_MODE',
+    defaultValue: 'combined',
+  );
+
   final String userId;
   final String userName;
   final String userEmail;
@@ -89,6 +94,8 @@ class CustomDrawer extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final displayName =
         userName.trim().isEmpty ? l10n.userFallback : userName.trim();
+    final showBriefAlertness = _alertnessMode != 'pvtb';
+    final showPvtbAlertness = _alertnessMode != 'brief';
 
     return Drawer(
       child: SafeArea(
@@ -192,37 +199,40 @@ class CustomDrawer extends StatelessWidget {
                         );
                       },
                     ),
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.bolt_outlined,
-                      title: l10n.briefAlertnessTest,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => AlertnessTestPage(userId: userId),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.timer_outlined,
-                      title: l10n.pvtbAlertnessTest,
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    AlertnessTestPage.pvtb(userId: userId),
-                          ),
-                        );
-                      },
-                    ),
+                    if (showBriefAlertness)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.bolt_outlined,
+                        title: l10n.briefAlertnessTest,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      AlertnessTestPage(userId: userId),
+                            ),
+                          );
+                        },
+                      ),
+                    if (showPvtbAlertness)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.timer_outlined,
+                        title: l10n.pvtbAlertnessTest,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      AlertnessTestPage.pvtb(userId: userId),
+                            ),
+                          );
+                        },
+                      ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.notifications_active_outlined,

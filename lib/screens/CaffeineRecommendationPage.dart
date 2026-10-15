@@ -292,6 +292,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     try {
       scheduledCount = await NotificationService.instance
           .replaceCaffeineReminders(
+            userId: widget.userId,
             recommendations: entries,
             languageCode: languageCode,
           );
@@ -301,7 +302,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
     try {
       await NotificationService.instance.showCalculationComplete(
-        recommendationCount: scheduledCount,
+        recommendationCount: entries.length,
+        scheduledCount: scheduledCount,
         languageCode: languageCode,
       );
     } catch (error) {

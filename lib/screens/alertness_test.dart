@@ -11,11 +11,12 @@ enum AlertnessTestVersion { brief, pvtb3Minute }
 class AlertnessTestPage extends StatefulWidget {
   final String userId;
   final AlertnessTestVersion version;
+  final http.Client? client;
 
-  const AlertnessTestPage({super.key, required this.userId})
+  const AlertnessTestPage({super.key, required this.userId, this.client})
     : version = AlertnessTestVersion.brief;
 
-  const AlertnessTestPage.pvtb({super.key, required this.userId})
+  const AlertnessTestPage.pvtb({super.key, required this.userId, this.client})
     : version = AlertnessTestVersion.pvtb3Minute;
 
   @override
@@ -39,7 +40,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   bool _testStarted = false;
   Color _boxColor = const Color(0xFF5E91B3);
   String _resultMessage = "";
-  DateTime? _startTime;
+  final Stopwatch _reactionClock = Stopwatch();
+  final Set<int> _pressedPointers = {};
+  DateTime? _completedAt;
   DateTime? _testDeadline;
   final List<Duration> _reactionTimes = [];
   int _currentTrial = 0;
@@ -75,6 +78,17 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
   String get _deviceLabel => _isPvtB ? 'Mobile PVT-B 3min' : 'Mobile';
 
+  String _text({required String zh, required String en, required String id}) {
+    switch (Localizations.localeOf(context).languageCode) {
+      case 'id':
+        return id;
+      case 'en':
+        return en;
+      default:
+        return zh;
+    }
+  }
+
   void _startTest() {
     final l10n = AppLocalizations.of(context)!;
     _cancelAllTimers();
@@ -90,6 +104,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
       _isError = false;
       _stimulusElapsedMs = 0;
       _hasCompleted = false;
+      _completedAt = null;
       _testDeadline = _isPvtB ? DateTime.now().add(_testDuration) : null;
       _remainingTime = _testDuration;
     });
@@ -141,7 +156,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
       setState(() {
         _isWaiting = false;
         _boxColor = _successColor;
-        _startTime = DateTime.now();
+        _reactionClock
+          ..reset()
+          ..start();
         _stimulusElapsedMs = 0;
         _resultMessage = l10n.alertnessTapNow;
       });
@@ -195,7 +212,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     } else {
       _timer?.cancel();
       _counterTimer?.cancel();
-      final reaction = DateTime.now().difference(_startTime!);
+      final reaction = _reactionClock.elapsed;
       final rawAdjustedReaction = reaction - _reactionAdjustment;
       final adjustedReaction =
           rawAdjustedReaction.isNegative ? Duration.zero : rawAdjustedReaction;
@@ -238,6 +255,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     _cancelAllTimers();
     if (!mounted) return;
     _hasCompleted = true;
+    _completedAt = DateTime.now().toUtc();
 
     setState(() {
       _testStarted = false;
@@ -293,13 +311,15 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   void _startStimulusCounter() {
     _counterTimer?.cancel();
     _counterTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (!mounted || _startTime == null || _isWaiting || _hasCompleted) {
+      if (!mounted ||
+          !_reactionClock.isRunning ||
+          _isWaiting ||
+          _hasCompleted) {
         return;
       }
 
       setState(() {
-        _stimulusElapsedMs =
-            DateTime.now().difference(_startTime!).inMilliseconds;
+        _stimulusElapsedMs = _reactionClock.elapsedMilliseconds;
       });
     });
   }
@@ -314,6 +334,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   }
 
   void _cancelAllTimers() {
+    _reactionClock.stop();
     _timer?.cancel();
     _timer = null;
     _durationTimer?.cancel();
@@ -351,6 +372,9 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
   void _showResultDialog(double avgTime) {
     final l10n = AppLocalizations.of(context)!;
+    final pageContext = context;
+    var saving = false;
+    String? saveError;
     setState(() {
       _selectedKssLevel = null;
     });
@@ -359,127 +383,268 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          backgroundColor: _backgroundColor,
-          title: Text(
-            l10n.alertnessResultTitle,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
-          ),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: [
-                const SizedBox(height: 10),
-                ..._buildResultSummary(l10n),
-                const Divider(
-                  height: 30,
-                  thickness: 1.5,
-                  color: Color(0xFFDDDDDD),
-                ),
-                Text(
-                  "${l10n.alertnessAverageReactionTime}: ${avgTime.toStringAsFixed(2)} ${l10n.millisecondsUnit}",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    color: _primaryColor,
+      barrierDismissible: false,
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, refreshDialog) {
+              Future<void> save({required bool retest}) async {
+                if (saving) return;
+                if (_reactionTimes.isEmpty) {
+                  if (retest) {
+                    Navigator.of(dialogContext).pop();
+                    _startTest();
+                  } else {
+                    Navigator.of(dialogContext).pop();
+                    Navigator.of(pageContext).maybePop();
+                  }
+                  return;
+                }
+                refreshDialog(() {
+                  saving = true;
+                  saveError = null;
+                });
+                try {
+                  await _sendAverageReactionTime(
+                    avgTime,
+                    _selectedKssLevel,
+                    _lapses,
+                    _falseStarts,
+                  );
+                  if (!mounted || !dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(pageContext).showSnackBar(
+                    SnackBar(content: Text(l10n.alertnessDataSent)),
+                  );
+                  if (retest) {
+                    _startTest();
+                  } else {
+                    Navigator.of(pageContext).maybePop(true);
+                  }
+                } catch (error) {
+                  if (!dialogContext.mounted) return;
+                  refreshDialog(() {
+                    saving = false;
+                    saveError =
+                        error is TimeoutException
+                            ? l10n.settingsRequestTimeout
+                            : error is http.ClientException
+                            ? l10n.alertnessNetworkSubmitFailed
+                            : error.toString();
+                  });
+                }
+              }
+
+              return PopScope(
+                canPop: false,
+                child: AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  l10n.alertnessChooseKss,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF555555),
+                  backgroundColor: _backgroundColor,
+                  title: Text(
+                    l10n.alertnessResultTitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor,
+                    ),
                   ),
-                ),
-                StatefulBuilder(
-                  builder: (context, setInnerState) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _primaryColor.withValues(alpha: 0.5),
+                  content: SingleChildScrollView(
+                    child: ListBody(
+                      children: [
+                        const SizedBox(height: 10),
+                        if (_reactionTimes.isEmpty)
+                          Text(
+                            _text(
+                              zh: '沒有有效的反應時間，這次不會上傳測試結果。請重新測試。',
+                              en:
+                                  'No valid reaction times were recorded. This result will not be uploaded. Please test again.',
+                              id:
+                                  'Tidak ada waktu reaksi yang valid. Hasil ini tidak akan diunggah. Silakan tes ulang.',
+                            ),
+                          ),
+                        if (saving) const LinearProgressIndicator(),
+                        if (saveError != null) ...[
+                          Text(
+                            saveError!,
+                            style: TextStyle(color: _errorColor),
+                          ),
+                          Text(
+                            _text(
+                              zh: '結果尚未確認儲存，請確認網路後重試。',
+                              en:
+                                  'Saving is not confirmed. Check the connection and try again.',
+                              id:
+                                  'Penyimpanan belum dikonfirmasi. Periksa koneksi lalu coba lagi.',
+                            ),
+                          ),
+                        ],
+                        ..._buildResultSummary(l10n),
+                        const Divider(
+                          height: 30,
+                          thickness: 1.5,
+                          color: Color(0xFFDDDDDD),
                         ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          value: _selectedKssLevel,
-                          isExpanded: true,
-                          hint: Text(l10n.alertnessChooseKssHint),
-                          items:
-                              kssLevels.map((int level) {
-                                return DropdownMenuItem<int>(
-                                  value: level,
-                                  child: Text(
-                                    "$level - ${_getKssDescription(level, l10n)}",
-                                    style: const TextStyle(
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                          onChanged: (int? newValue) {
-                            setInnerState(() {
-                              _selectedKssLevel = newValue;
-                            });
+                        Text(
+                          "${l10n.alertnessAverageReactionTime}: ${avgTime.toStringAsFixed(2)} ${l10n.millisecondsUnit}",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            color: _primaryColor,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          l10n.alertnessChooseKss,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF555555),
+                          ),
+                        ),
+                        StatefulBuilder(
+                          builder: (context, setInnerState) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _primaryColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  value: _selectedKssLevel,
+                                  isExpanded: true,
+                                  hint: Text(l10n.alertnessChooseKssHint),
+                                  items:
+                                      kssLevels.map((int level) {
+                                        return DropdownMenuItem<int>(
+                                          value: level,
+                                          child: Text(
+                                            "$level - ${_getKssDescription(level, l10n)}",
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                  onChanged:
+                                      saving
+                                          ? null
+                                          : (int? newValue) {
+                                            setInnerState(() {
+                                              _selectedKssLevel = newValue;
+                                            });
+                                          },
+                                  dropdownColor: Colors.white,
+                                ),
+                              ),
+                            );
                           },
-                          dropdownColor: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                  actionsAlignment: MainAxisAlignment.spaceAround,
+                  actions: [
+                    if (_reactionTimes.isNotEmpty)
+                      TextButton(
+                        onPressed:
+                            saving
+                                ? null
+                                : () async {
+                                  final discard = await showDialog<bool>(
+                                    context: dialogContext,
+                                    builder:
+                                        (confirmContext) => AlertDialog(
+                                          title: Text(
+                                            _text(
+                                              zh: '放棄本次結果？',
+                                              en: 'Discard this result?',
+                                              id: 'Buang hasil ini?',
+                                            ),
+                                          ),
+                                          content: Text(
+                                            _text(
+                                              zh:
+                                                  '結果尚未確認上傳。離開後將捨棄本次結果；也可以取消並繼續重試儲存。',
+                                              en:
+                                                  'Uploading has not been confirmed. Leaving discards this result. Cancel to keep it and retry saving.',
+                                              id:
+                                                  'Unggahan belum dikonfirmasi. Jika keluar, hasil ini dibuang. Batalkan untuk mencoba menyimpan lagi.',
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.of(
+                                                    confirmContext,
+                                                  ).pop(false),
+                                              child: Text(l10n.cancel),
+                                            ),
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.of(
+                                                    confirmContext,
+                                                  ).pop(true),
+                                              child: Text(
+                                                _text(
+                                                  zh: '放棄並離開',
+                                                  en: 'Discard and leave',
+                                                  id: 'Buang dan keluar',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                  );
+                                  if (discard == true &&
+                                      mounted &&
+                                      dialogContext.mounted) {
+                                    Navigator.of(dialogContext).pop();
+                                    Navigator.of(pageContext).maybePop();
+                                  }
+                                },
+                        child: Text(
+                          _text(
+                            zh: '放棄結果',
+                            en: 'Discard result',
+                            id: 'Buang hasil',
+                          ),
                         ),
                       ),
-                    );
-                  },
+                    TextButton(
+                      key: const ValueKey('alertness-retest'),
+                      onPressed: saving ? null : () => save(retest: true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _primaryColor,
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      child: Text(l10n.alertnessRetest),
+                    ),
+                    ElevatedButton(
+                      key: const ValueKey('alertness-save-result'),
+                      onPressed: saving ? null : () => save(retest: false),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        saving ? l10n.saving : l10n.alertnessDoneClose,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
-          actionsAlignment: MainAxisAlignment.spaceAround,
-          actions: [
-            TextButton(
-              onPressed: () {
-                _sendAverageReactionTime(
-                  avgTime,
-                  _selectedKssLevel,
-                  _lapses,
-                  _falseStarts,
-                );
-                Navigator.of(context).pop();
-                _startTest();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: _primaryColor,
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              child: Text(l10n.alertnessRetest),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _sendAverageReactionTime(
-                  avgTime,
-                  _selectedKssLevel,
-                  _lapses,
-                  _falseStarts,
-                );
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Text(l10n.alertnessDoneClose),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -499,61 +664,29 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
   ) async {
     final l10n = AppLocalizations.of(context)!;
     final url = Uri.parse('$baseUrl/users_pvt/');
+    final body = jsonEncode({
+      'user_id': widget.userId,
+      'mean_rt': avgTime,
+      'lapses': lapses,
+      'false_starts': falseStarts,
+      'kss_level': kssLevel,
+      'device': _deviceLabel,
+      'test_at': _completedAt!.toIso8601String(),
+    });
+    final res = await (widget.client?.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            ) ??
+            http.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            ))
+        .timeout(_requestTimeout);
 
-    try {
-      final res = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user_id': widget.userId,
-              'mean_rt': avgTime,
-              'lapses': lapses,
-              'false_starts': falseStarts,
-              'kss_level': kssLevel,
-              'device': _deviceLabel,
-              'test_at': DateTime.now().toUtc().toIso8601String(),
-            }),
-          )
-          .timeout(_requestTimeout);
-
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.alertnessDataSent),
-              backgroundColor: const Color(0xFF28A745),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_formatSubmitError(res, l10n)),
-              backgroundColor: _errorColor,
-            ),
-          );
-        }
-      }
-    } on TimeoutException {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.settingsRequestTimeout),
-            backgroundColor: const Color(0xFFDC3545),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.alertnessNetworkSubmitFailed),
-            backgroundColor: const Color(0xFFDC3545),
-          ),
-        );
-      }
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      throw _formatSubmitError(res, l10n);
     }
   }
 
@@ -632,11 +765,18 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                 _buildProgressCard(l10n),
               ],
               const SizedBox(height: 40),
-              GestureDetector(
-                onTap: _boxTapped,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
+              Listener(
+                key: const ValueKey('alertness-response-target'),
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
+                  final wasReleased = _pressedPointers.isEmpty;
+                  _pressedPointers.add(event.pointer);
+                  if (wasReleased) _boxTapped();
+                },
+                onPointerUp: (event) => _pressedPointers.remove(event.pointer),
+                onPointerCancel:
+                    (event) => _pressedPointers.remove(event.pointer),
+                child: Container(
                   width: 300,
                   height: 300,
                   decoration: BoxDecoration(
@@ -656,6 +796,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
               ),
               const SizedBox(height: 40),
               ElevatedButton(
+                key: const ValueKey('alertness-start'),
                 onPressed: !_testStarted ? _startTest : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _primaryColor,

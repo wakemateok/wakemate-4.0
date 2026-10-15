@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/api/day_record_replacement.dart';
 import 'package:my_app/api/taipei_time.dart';
@@ -57,6 +56,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
   static const int _maxWakeDurationHours = 48;
 
   final List<TimeSlot> _timeSlots = [];
+  bool _isSaving = false;
 
   String get _targetWakePeriodsKey {
     final dateKey = DateFormat('yyyy-MM-dd').format(widget.selectedDate);
@@ -167,6 +167,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
   }
 
   Future<void> _saveData() async {
+    if (_isSaving) return;
     final l10n = AppLocalizations.of(context)!;
 
     if (_timeSlots.any(
@@ -196,73 +197,37 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
       }
     }
 
-    var cleanupFailed = false;
+    setState(() => _isSaving = true);
     try {
-      await deleteExistingDayRecords(
+      await replaceDayRecords(
         baseUrl: baseUrl,
         endpoint: 'users_wake',
         userId: widget.userId,
         selectedDate: widget.selectedDate,
-        dateField: 'target_start_time',
+        periods:
+            _timeSlots
+                .map(
+                  (slot) => {
+                    'start': _formatToISO8601(slot.startController.text),
+                    'end': _formatToISO8601(slot.endController.text),
+                  },
+                )
+                .toList(),
       );
-    } catch (_) {
-      cleanupFailed = true;
-    }
-
-    var successfulSubmissions = 0;
-    final headers = {'Content-Type': 'application/json'};
-
-    for (final slot in _timeSlots) {
-      try {
-        final payload = {
-          'user_id': widget.userId,
-          'target_start_time': _formatToISO8601(slot.startController.text),
-          'target_end_time': _formatToISO8601(slot.endController.text),
-        };
-
-        final response = await http
-            .post(
-              Uri.parse('$baseUrl/users_wake/'),
-              headers: headers,
-              body: jsonEncode(payload),
-            )
-            .timeout(const Duration(seconds: 20));
-
-        if (response.statusCode == 200) {
-          successfulSubmissions++;
-        } else {
-          final body =
-              response.body.isEmpty
-                  ? ''
-                  : '\n${utf8.decode(response.bodyBytes)}';
-          _showSnackBar('${l10n.wakeSaveFailed}: ${response.statusCode}$body');
-        }
-      } catch (e) {
-        _showSnackBar('${l10n.networkError}: $e');
-      }
-    }
-
-    if (successfulSubmissions == _timeSlots.length) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         _targetWakePeriodsKey,
         jsonEncode(_timeSlots.map((slot) => slot.toJson()).toList()),
       );
 
-      _showSnackBar(
-        cleanupFailed
-            ? '${l10n.wakeSaveSuccess}\n${l10n.deleteOldRecordsWarning}'
-            : l10n.wakeSaveSuccess,
-        color: _accentColor,
-      );
-      if (mounted) Navigator.of(context).pop(true);
-      return;
-    }
-
-    if (successfulSubmissions > 0) {
-      _showSnackBar(l10n.wakeSavePartial, color: Colors.orange);
-    } else {
-      _showSnackBar(l10n.wakeSaveFailed);
+      _showSnackBar(l10n.wakeSaveSuccess, color: _accentColor);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      _showSnackBar(recordSaveErrorText(e, l10n));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -302,6 +267,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
     final l10n = AppLocalizations.of(context)!;
 
     return TextField(
+      enabled: !_isSaving,
       controller: controller,
       keyboardType: TextInputType.datetime,
       decoration: InputDecoration(
@@ -330,12 +296,14 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${l10n.wakeSlot} #${_timeSlots.indexOf(slot) + 1}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _primaryColor,
+              Expanded(
+                child: Text(
+                  '${l10n.wakeSlot} #${_timeSlots.indexOf(slot) + 1}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _primaryColor,
+                  ),
                 ),
               ),
               if (_timeSlots.length > 1)
@@ -344,7 +312,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
                     Icons.remove_circle_outline,
                     color: Colors.redAccent,
                   ),
-                  onPressed: () => _removeTimeSlot(slot.key),
+                  onPressed: _isSaving ? null : () => _removeTimeSlot(slot.key),
                 ),
             ],
           ),
@@ -368,77 +336,80 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      appBar: AppBar(
-        title: Text(
-          l10n.wakePageTitle,
-          style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
+        backgroundColor: _bgLight,
+        appBar: AppBar(
+          title: Text(
+            l10n.wakePageTitle,
+            style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white.withValues(alpha: 0.9),
+          elevation: 1,
+          shadowColor: Colors.black12,
+          iconTheme: IconThemeData(color: _primaryColor),
         ),
-        backgroundColor: Colors.white.withValues(alpha: 0.9),
-        elevation: 1,
-        shadowColor: Colors.black12,
-        iconTheme: IconThemeData(color: _primaryColor),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Text(
-                l10n.wakeInstruction,
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              ..._timeSlots.map(_buildTimeSlot),
-              OutlinedButton.icon(
-                onPressed: _addTimeSlot,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _accentColor,
-                  side: BorderSide(color: _accentColor, width: 2),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 20,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Text(
+                  l10n.wakeInstruction,
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
-                icon: const Icon(Icons.add),
-                label: Text(
-                  l10n.addWakeSlot,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _saveData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
+                const SizedBox(height: 30),
+                ..._timeSlots.map(_buildTimeSlot),
+                OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _addTimeSlot,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _accentColor,
+                    side: BorderSide(color: _accentColor, width: 2),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 20,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 5,
                   ),
-                  icon: const Icon(Icons.cloud_upload),
+                  icon: const Icon(Icons.add),
                   label: Text(
-                    l10n.saveWakeSlots,
+                    l10n.addWakeSlot,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _saveData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 5,
+                    ),
+                    icon: const Icon(Icons.cloud_upload),
+                    label: Text(
+                      _isSaving ? l10n.saving : l10n.saveWakeSlots,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

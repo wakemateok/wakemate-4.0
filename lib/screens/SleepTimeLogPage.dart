@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/api/day_record_replacement.dart';
 import 'package:my_app/api/taipei_time.dart';
@@ -31,6 +28,7 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   final Color _accentColor = const Color(0xFF8BB9A1);
   final Color _bgLight = const Color(0xFFF9F9F7);
   static const int _maxSleepDurationHours = 48;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -111,6 +109,7 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   }
 
   Future<void> _submitData() async {
+    if (_isSaving) return;
     final l10n = AppLocalizations.of(context)!;
     final sleepStartTimeText = sleepStartController.text.trim();
     final sleepEndTimeText = sleepEndController.text.trim();
@@ -133,45 +132,28 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
       return;
     }
 
-    var cleanupFailed = false;
+    setState(() => _isSaving = true);
     try {
-      await deleteExistingDayRecords(
+      await replaceDayRecords(
         baseUrl: baseUrl,
         endpoint: 'users_sleep',
         userId: widget.userId,
         selectedDate: dtEnd,
-        dateField: 'sleep_end_time',
+        periods: [
+          {
+            'start': _formatToApiTimestamp(sleepStartTimeText),
+            'end': _formatToApiTimestamp(sleepEndTimeText),
+          },
+        ],
       );
-    } catch (_) {
-      cleanupFailed = true;
-    }
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/users_sleep/'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user_id': widget.userId,
-              'sleep_start_time': _formatToApiTimestamp(sleepStartTimeText),
-              'sleep_end_time': _formatToApiTimestamp(sleepEndTimeText),
-            }),
-          )
-          .timeout(const Duration(seconds: 20));
-
-      if (response.statusCode == 200) {
-        await _handleSuccessfulSave(dtStart, dtEnd);
-        if (cleanupFailed) {
-          _showSnackBar(l10n.deleteOldRecordsWarning, color: Colors.orange);
-        }
-        if (mounted) Navigator.of(context).pop(true);
-      } else {
-        final body =
-            response.body.isEmpty ? '' : '\n${utf8.decode(response.bodyBytes)}';
-        _showSnackBar('${l10n.sleepSaveFailed}: ${response.statusCode}$body');
-      }
+      await _handleSuccessfulSave(dtStart, dtEnd);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      Navigator.of(context).pop(true);
     } catch (e) {
-      _showSnackBar('${l10n.networkError}: $e');
+      _showSnackBar(recordSaveErrorText(e, l10n));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -199,6 +181,7 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
     final l10n = AppLocalizations.of(context)!;
 
     return TextField(
+      enabled: !_isSaving,
       controller: controller,
       keyboardType: TextInputType.datetime,
       decoration: InputDecoration(
@@ -219,65 +202,68 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      backgroundColor: _bgLight,
-      appBar: AppBar(
-        title: Text(
-          l10n.sleepPageTitle,
-          style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
+        backgroundColor: _bgLight,
+        appBar: AppBar(
+          title: Text(
+            l10n.sleepPageTitle,
+            style: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white.withValues(alpha: 0.9),
+          elevation: 1,
+          shadowColor: Colors.black12,
+          iconTheme: IconThemeData(color: _primaryColor),
         ),
-        backgroundColor: Colors.white.withValues(alpha: 0.9),
-        elevation: 1,
-        shadowColor: Colors.black12,
-        iconTheme: IconThemeData(color: _primaryColor),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Text(
-                l10n.sleepInstruction,
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              _buildDateTimeField(
-                controller: sleepStartController,
-                label: l10n.sleepStart,
-                icon: Icons.bedtime_outlined,
-              ),
-              const SizedBox(height: 16),
-              _buildDateTimeField(
-                controller: sleepEndController,
-                label: l10n.sleepEnd,
-                icon: Icons.access_time_rounded,
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _submitData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Text(
+                  l10n.sleepInstruction,
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 30),
+                _buildDateTimeField(
+                  controller: sleepStartController,
+                  label: l10n.sleepStart,
+                  icon: Icons.bedtime_outlined,
+                ),
+                const SizedBox(height: 16),
+                _buildDateTimeField(
+                  controller: sleepEndController,
+                  label: l10n.sleepEnd,
+                  icon: Icons.access_time_rounded,
+                ),
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _submitData,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 5,
                     ),
-                    elevation: 5,
-                  ),
-                  icon: const Icon(Icons.save),
-                  label: Text(
-                    l10n.saveSleep,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    icon: const Icon(Icons.save),
+                    label: Text(
+                      _isSaving ? l10n.saving : l10n.saveSleep,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

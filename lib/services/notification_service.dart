@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,9 @@ import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
   NotificationService._();
+
+  @visibleForTesting
+  NotificationService.forTesting();
 
   static final NotificationService instance = NotificationService._();
 
@@ -24,13 +28,30 @@ class NotificationService {
   bool _initialized = false;
   bool _supported = false;
   bool _notificationPermissionRequested = false;
+  Future<void>? _initializing;
+  Future<void> _operationTail = Future<void>.value();
 
-  Future<void> initialize() async {
-    if (_initialized) return;
-    _initialized = true;
+  Future<T> _runExclusive<T>(Future<T> Function() operation) {
+    final result = _operationTail.then((_) => operation());
+    _operationTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
+  }
 
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-    _supported = true;
+  Future<void> initialize() {
+    if (_initialized) return Future<void>.value();
+    return _initializing ??= _initialize().whenComplete(
+      () => _initializing = null,
+    );
+  }
+
+  Future<void> _initialize() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      _initialized = true;
+      return;
+    }
 
     tz_data.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Taipei'));
@@ -39,17 +60,24 @@ class NotificationService {
       android: AndroidInitializationSettings(_notificationIcon),
     );
     await _plugin.initialize(settings: settings);
+    _supported = true;
+    _initialized = true;
   }
 
   Future<void> showCalculationComplete({
     required int recommendationCount,
     required String languageCode,
-  }) async {
+    int? scheduledCount,
+  }) => _runExclusive(() async {
     await initialize();
     if (!_supported) return;
     await _requestNotificationPermission();
 
-    final text = _calculationText(languageCode, recommendationCount);
+    final text = _calculationText(
+      languageCode,
+      recommendationCount,
+      scheduledCount ?? recommendationCount,
+    );
     await _plugin.show(
       id: 1001,
       title: text.title,
@@ -63,34 +91,36 @@ class NotificationService {
       title: text.title,
       body: text.body,
     );
-  }
+  });
 
-  Future<bool> showTestNotification({required String languageCode}) async {
-    await initialize();
-    if (!_supported) return false;
-    await _requestNotificationPermission();
+  Future<bool> showTestNotification({required String languageCode}) =>
+      _runExclusive(() async {
+        await initialize();
+        if (!_supported) return false;
+        await _requestNotificationPermission();
 
-    final text = _testText(languageCode);
-    await _plugin.show(
-      id: DateTime.now().millisecondsSinceEpoch % 2147483647,
-      title: text.title,
-      body: text.body,
-      notificationDetails: _notificationDetails(languageCode),
-      payload: 'notification_test',
-    );
-    await _appendHistory(
-      type: 'test',
-      status: 'sent',
-      title: text.title,
-      body: text.body,
-    );
-    return true;
-  }
+        final text = _testText(languageCode);
+        await _plugin.show(
+          id: DateTime.now().millisecondsSinceEpoch % 2147483647,
+          title: text.title,
+          body: text.body,
+          notificationDetails: _notificationDetails(languageCode),
+          payload: 'notification_test',
+        );
+        await _appendHistory(
+          type: 'test',
+          status: 'sent',
+          title: text.title,
+          body: text.body,
+        );
+        return true;
+      });
 
   Future<int> replaceCaffeineReminders({
     required List<dynamic> recommendations,
     required String languageCode,
-  }) async {
+    String userId = '',
+  }) => _runExclusive(() async {
     await initialize();
     if (!_supported) return 0;
     await _requestNotificationPermission();
@@ -99,25 +129,49 @@ class NotificationService {
 
     final now = tz.TZDateTime.now(tz.local);
     final scheduledIds = <int>[];
+    final seen = <String>{};
+    final previousHistory = await loadNotificationHistory();
 
-    for (var index = 0; index < recommendations.length; index++) {
-      final item = recommendations[index];
+    for (final item in recommendations) {
       if (item is! Map) continue;
 
       final timestamp = item['recommended_caffeine_intake_timing']?.toString();
       final amount = _parseAmount(item['recommended_caffeine_amount']);
-      if (timestamp == null || amount == null) continue;
+      if (timestamp == null || amount == null || amount <= 0 || amount > 500) {
+        continue;
+      }
 
       final parsed = DateTime.tryParse(timestamp);
       if (parsed == null) continue;
 
       final scheduledTime = tz.TZDateTime.from(parsed.toUtc(), tz.local);
-      final id = _notificationId(scheduledTime, index);
+      final reminderKey = '$userId|${scheduledTime.toUtc().toIso8601String()}';
+      if (!seen.add(reminderKey)) continue;
+      final id = _notificationId(reminderKey);
       final text = _reminderText(languageCode, amount);
 
       if (!scheduledTime.isAfter(now)) {
         final minutesLate = now.difference(scheduledTime);
         if (minutesLate <= _recentPastReminderGrace) {
+          final alreadyQueued = previousHistory.any(
+            (entry) =>
+                entry.type == 'caffeine_reminder' &&
+                (entry.reminderKey == reminderKey ||
+                    (entry.reminderKey == null &&
+                        entry.scheduledAt == scheduledTime.toUtc())) &&
+                ['scheduled', 'sent', 'due_unconfirmed'].contains(entry.status),
+          );
+          if (alreadyQueued) {
+            await _appendHistory(
+              type: 'caffeine_reminder',
+              status: 'due_unconfirmed',
+              title: text.title,
+              body: text.body,
+              scheduledAt: scheduledTime,
+              reminderKey: reminderKey,
+            );
+            continue;
+          }
           await _plugin.show(
             id: id,
             title: text.title,
@@ -131,6 +185,7 @@ class NotificationService {
             title: text.title,
             body: text.body,
             scheduledAt: scheduledTime,
+            reminderKey: reminderKey,
           );
         } else {
           await _appendHistory(
@@ -139,6 +194,7 @@ class NotificationService {
             title: text.title,
             body: text.body,
             scheduledAt: scheduledTime,
+            reminderKey: reminderKey,
           );
         }
         continue;
@@ -161,6 +217,7 @@ class NotificationService {
           title: text.title,
           body: text.body,
           scheduledAt: scheduledTime,
+          reminderKey: reminderKey,
         );
       } else {
         await _appendHistory(
@@ -169,6 +226,7 @@ class NotificationService {
           title: text.title,
           body: text.body,
           scheduledAt: scheduledTime,
+          reminderKey: reminderKey,
         );
       }
     }
@@ -179,7 +237,7 @@ class NotificationService {
       scheduledIds.map((id) => id.toString()).toList(),
     );
     return scheduledIds.length;
-  }
+  });
 
   Future<int> pendingCaffeineReminderCount() async {
     await initialize();
@@ -237,27 +295,55 @@ class NotificationService {
   }
 
   Future<void> _requestNotificationPermission() async {
-    if (_notificationPermissionRequested) return;
-    _notificationPermissionRequested = true;
-
     final android =
         _plugin
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
             >();
-    await android?.requestNotificationsPermission();
+    if (await android?.areNotificationsEnabled() == true) return;
+    if (!_notificationPermissionRequested) {
+      _notificationPermissionRequested = true;
+      if (await android?.requestNotificationsPermission() == true) return;
+    }
+    throw const NotificationPermissionException();
   }
 
   Future<void> _cancelPreviousReminders() async {
     final prefs = await SharedPreferences.getInstance();
     final savedIds = prefs.getStringList(_scheduledIdsKey) ?? const [];
+    final pending = await _plugin.pendingNotificationRequests();
+    final ids = {
+      ...savedIds.map(int.tryParse).whereType<int>(),
+      ...pending
+          .where(
+            (entry) => entry.payload?.startsWith('caffeine_reminder:') ?? false,
+          )
+          .map((entry) => entry.id),
+    };
 
-    for (final savedId in savedIds) {
-      final id = int.tryParse(savedId);
-      if (id != null) await _plugin.cancel(id: id);
+    for (final id in ids) {
+      await _plugin.cancel(id: id);
     }
 
     await prefs.remove(_scheduledIdsKey);
+    final history = await loadNotificationHistory();
+    final now = DateTime.now().toUtc();
+    await prefs.setString(
+      _historyKey,
+      jsonEncode(
+        history.map((entry) {
+          final json = entry.toJson();
+          if (entry.type == 'caffeine_reminder' &&
+              entry.status == 'scheduled') {
+            json['status'] =
+                entry.scheduledAt?.isAfter(now) == true
+                    ? 'cancelled'
+                    : 'due_unconfirmed';
+          }
+          return json;
+        }).toList(),
+      ),
+    );
   }
 
   Future<List<WakeMateNotificationLogEntry>> loadNotificationHistory() async {
@@ -276,16 +362,20 @@ class NotificationService {
               .toList();
 
       entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return entries;
+      final seen = <String>{};
+      return entries
+          .where((entry) => seen.add(_historyIdentity(entry)))
+          .take(_maxHistoryItems)
+          .toList();
     } catch (_) {
       return [];
     }
   }
 
-  Future<void> clearNotificationHistory() async {
+  Future<void> clearNotificationHistory() => _runExclusive(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_historyKey);
-  }
+  });
 
   Future<void> _appendHistory({
     required String type,
@@ -293,6 +383,7 @@ class NotificationService {
     required String title,
     required String body,
     tz.TZDateTime? scheduledAt,
+    String? reminderKey,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final current = await loadNotificationHistory();
@@ -303,18 +394,42 @@ class NotificationService {
       body: body,
       createdAt: DateTime.now().toUtc(),
       scheduledAt: scheduledAt?.toUtc(),
+      reminderKey: reminderKey,
     );
 
-    final updated = [entry, ...current].take(_maxHistoryItems).toList();
+    final identity = _historyIdentity(entry);
+    final updated =
+        [
+          entry,
+          ...current.where(
+            (item) =>
+                _historyIdentity(item) != identity &&
+                !(entry.type == 'caffeine_reminder' &&
+                    item.type == entry.type &&
+                    item.reminderKey == null &&
+                    item.scheduledAt == entry.scheduledAt),
+          ),
+        ].take(_maxHistoryItems).toList();
     await prefs.setString(
       _historyKey,
       jsonEncode(updated.map((item) => item.toJson()).toList()),
     );
   }
 
-  int _notificationId(tz.TZDateTime time, int index) {
-    const maxAndroidId = 2147483647;
-    return (time.millisecondsSinceEpoch ~/ 60000 + index) % maxAndroidId;
+  String _historyIdentity(WakeMateNotificationLogEntry entry) {
+    if (entry.type == 'caffeine_reminder' && entry.scheduledAt != null) {
+      return '${entry.type}|${entry.reminderKey ?? entry.scheduledAt!.toUtc().toIso8601String()}';
+    }
+    if (entry.type == 'calculation_complete') return entry.type;
+    return '${entry.type}|${entry.createdAt.toUtc().toIso8601String()}';
+  }
+
+  int _notificationId(String reminderKey) {
+    var hash = 2166136261;
+    for (final code in reminderKey.codeUnits) {
+      hash = ((hash ^ code) * 16777619) & 0x7fffffff;
+    }
+    return 2000 + hash % (2147483647 - 2000);
   }
 
   int? _parseAmount(dynamic value) {
@@ -322,26 +437,32 @@ class NotificationService {
     return num.tryParse(value?.toString() ?? '')?.round();
   }
 
-  _NotificationText _calculationText(String languageCode, int count) {
+  _NotificationText _calculationText(
+    String languageCode,
+    int count,
+    int scheduled,
+  ) {
     switch (languageCode) {
       case 'id':
         return _NotificationText(
           'Rekomendasi WakeMate siap',
           count == 0
-              ? 'Saat ini Anda tidak memerlukan kafein tambahan.'
-              : '$count pengingat minum kafein telah dijadwalkan.',
+              ? 'Tidak ada rekomendasi untuk ditampilkan saat ini.'
+              : '$count rekomendasi tersedia; $scheduled pengingat dijadwalkan. Periksa status pengingat di aplikasi.',
         );
       case 'en':
         return _NotificationText(
           'WakeMate recommendation ready',
           count == 0
-              ? 'No additional caffeine is recommended right now.'
-              : '$count caffeine reminders have been scheduled.',
+              ? 'There are no recommendation entries to display right now.'
+              : '$count recommendations are ready; $scheduled reminders are scheduled. Check reminder status in the app.',
         );
       default:
         return _NotificationText(
           'WakeMate 推薦計算完成',
-          count == 0 ? '目前沒有需要補充咖啡因。' : '已安排 $count 筆咖啡因飲用提醒。',
+          count == 0
+              ? '目前沒有可顯示的推薦項目。'
+              : '已產生 $count 筆推薦，已安排 $scheduled 筆提醒。請在 App 確認提醒狀態。',
         );
     }
   }
@@ -430,6 +551,10 @@ class _NotificationText {
   final String body;
 }
 
+class NotificationPermissionException implements Exception {
+  const NotificationPermissionException();
+}
+
 class WakeMateNotificationLogEntry {
   const WakeMateNotificationLogEntry({
     required this.type,
@@ -438,6 +563,7 @@ class WakeMateNotificationLogEntry {
     required this.body,
     required this.createdAt,
     this.scheduledAt,
+    this.reminderKey,
   });
 
   final String type;
@@ -446,6 +572,7 @@ class WakeMateNotificationLogEntry {
   final String body;
   final DateTime createdAt;
   final DateTime? scheduledAt;
+  final String? reminderKey;
 
   static WakeMateNotificationLogEntry? fromJson(Map<dynamic, dynamic> json) {
     final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '');
@@ -458,6 +585,7 @@ class WakeMateNotificationLogEntry {
       body: json['body']?.toString() ?? '',
       createdAt: createdAt,
       scheduledAt: DateTime.tryParse(json['scheduledAt']?.toString() ?? ''),
+      reminderKey: json['reminderKey']?.toString(),
     );
   }
 
@@ -469,6 +597,7 @@ class WakeMateNotificationLogEntry {
       'body': body,
       'createdAt': createdAt.toUtc().toIso8601String(),
       'scheduledAt': scheduledAt?.toUtc().toIso8601String(),
+      'reminderKey': reminderKey,
     };
   }
 }

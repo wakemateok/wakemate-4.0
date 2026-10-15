@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/services/notification_service.dart';
 
 class NotificationCenterPage extends StatefulWidget {
@@ -18,6 +19,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   int _pendingReminderCount = 0;
   bool _isLoading = true;
   bool _isSendingTest = false;
+  String? _loadError;
 
   @override
   void initState() {
@@ -37,46 +39,81 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   Future<void> _loadRecords() async {
-    final records =
-        await NotificationService.instance.loadNotificationHistory();
-    final pendingReminderCount =
-        await NotificationService.instance.pendingCaffeineReminderCount();
-    if (!mounted) return;
-    setState(() {
-      _records = records;
-      _pendingReminderCount = pendingReminderCount;
-      _isLoading = false;
-    });
+    try {
+      final records =
+          await NotificationService.instance.loadNotificationHistory();
+      final pendingReminderCount =
+          await NotificationService.instance.pendingCaffeineReminderCount();
+      if (!mounted) return;
+      setState(() {
+        _records = records;
+        _pendingReminderCount = pendingReminderCount;
+        _isLoading = false;
+        _loadError = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = _text(
+          zh: '無法讀取手機通知狀態，請重新整理或確認通知權限。',
+          en:
+              'Unable to read notification status. Refresh or check notification permissions.',
+          id:
+              'Status notifikasi tidak dapat dibaca. Muat ulang atau periksa izin notifikasi.',
+        );
+      });
+    }
   }
 
   Future<void> _sendTestNotification() async {
     setState(() => _isSendingTest = true);
 
     final languageCode = Localizations.localeOf(context).languageCode;
-    final sent = await NotificationService.instance.showTestNotification(
-      languageCode: languageCode,
-    );
-    await _loadRecords();
-
-    if (!mounted) return;
-    setState(() => _isSendingTest = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
+    var message = '';
+    try {
+      final sent = await NotificationService.instance.showTestNotification(
+        languageCode: languageCode,
+      );
+      if (!mounted) return;
+      message =
           sent
               ? _text(
-                zh: '已送出測試通知',
-                en: 'Test notification sent.',
-                id: 'Notifikasi tes terkirim.',
+                zh: '已交給手機系統發送，請確認通知列是否出現。',
+                en:
+                    'Submitted to the phone system. Please check the notification tray.',
+                id: 'Dikirim ke sistem ponsel. Periksa bilah notifikasi.',
               )
               : _text(
                 zh: '此裝置不支援 App 內通知測試',
                 en: 'Notification test is not supported on this device.',
                 id: 'Tes notifikasi tidak didukung di perangkat ini.',
-              ),
-        ),
-      ),
-    );
+              );
+    } on NotificationPermissionException {
+      if (!mounted) return;
+      message = _text(
+        zh: '通知未開啟。請到手機「設定 → 應用程式 → WakeMate → 通知」允許通知後重試。',
+        en:
+            'Notifications are disabled. Allow notifications in phone Settings > Apps > WakeMate > Notifications, then try again.',
+        id:
+            'Notifikasi dinonaktifkan. Izinkan melalui Setelan > Aplikasi > WakeMate > Notifikasi, lalu coba lagi.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      message = _text(
+        zh: '測試通知未送出，請確認手機通知設定後重試。',
+        en:
+            'The test notification failed. Check phone notification settings and try again.',
+        id: 'Notifikasi tes gagal. Periksa setelan notifikasi lalu coba lagi.',
+      );
+    } finally {
+      if (mounted) setState(() => _isSendingTest = false);
+    }
+    await _loadRecords();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _clearRecords() async {
@@ -85,7 +122,9 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   String _formatDateTime(DateTime value) {
-    return DateFormat('yyyy-MM-dd HH:mm').format(value.toLocal());
+    return DateFormat(
+      'yyyy-MM-dd HH:mm',
+    ).format(apiTimestampToTaipei(value.toUtc().toIso8601String())!);
   }
 
   String _statusLabel(String status) {
@@ -98,6 +137,14 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         return _text(zh: '已過期', en: 'Past', id: 'Lewat');
       case 'schedule_failed':
         return _text(zh: '排程失敗', en: 'Failed', id: 'Gagal');
+      case 'cancelled':
+        return _text(zh: '已取消', en: 'Cancelled', id: 'Dibatalkan');
+      case 'due_unconfirmed':
+        return _text(
+          zh: '時間已到・未確認送達',
+          en: 'Due - delivery unconfirmed',
+          id: 'Jatuh tempo - pengiriman belum dikonfirmasi',
+        );
       default:
         return status;
     }
@@ -179,21 +226,23 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    _statusLabel(record.status),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _statusLabel(record.status),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -289,6 +338,8 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                 ],
               ),
               const SizedBox(height: 12),
+              if (_loadError != null)
+                Text(_loadError!, style: const TextStyle(color: Colors.red)),
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(

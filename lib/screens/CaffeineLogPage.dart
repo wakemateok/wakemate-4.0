@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 
 import '../data/ntu_hospital_caffeine_catalog.dart';
 
@@ -56,11 +57,13 @@ class _StrengthOption {
 class CaffeineLogPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final http.Client? client;
 
   const CaffeineLogPage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.client,
   });
 
   @override
@@ -68,6 +71,7 @@ class CaffeineLogPage extends StatefulWidget {
 }
 
 class _CaffeineLogPageState extends State<CaffeineLogPage> {
+  bool _isSaving = false;
   final TextEditingController caffeineController = TextEditingController();
   final TextEditingController drinkNameController = TextEditingController();
   final TextEditingController takingTimeController = TextEditingController();
@@ -566,6 +570,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Future<void> _submitData() async {
+    if (_isSaving) return;
     final l10n = AppLocalizations.of(context)!;
     final takingTime = takingTimeController.text.trim();
     final caffeineAmount = _estimatedCaffeineAmount;
@@ -593,8 +598,10 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
       return;
     }
 
+    setState(() => _isSaving = true);
+    final client = widget.client ?? http.Client();
     try {
-      final response = await http
+      final response = await client
           .post(
             Uri.parse('$baseUrl/users_intake/'),
             headers: {'Content-Type': 'application/json'},
@@ -609,8 +616,12 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
 
       if (response.statusCode == 200) {
         await _saveToLocal(caffeineAmount.toDouble(), takingTime);
+        await invalidateFutureRecommendations();
         _showSnackBar(l10n.caffeineSaveSuccess, color: const Color(0xFF8BB9A1));
-        if (mounted) Navigator.of(context).pop(true);
+        if (mounted) {
+          setState(() => _isSaving = false);
+          Navigator.of(context).pop(true);
+        }
       } else {
         final body =
             response.body.isEmpty ? '' : '\n${utf8.decode(response.bodyBytes)}';
@@ -620,6 +631,9 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
       }
     } catch (e) {
       _showSnackBar('${l10n.networkError}: $e');
+    } finally {
+      if (widget.client == null) client.close();
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -1051,87 +1065,94 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     const accentColor = Color(0xFF8BB9A1);
     const bgLight = Color(0xFFF9F9F7);
 
-    return Scaffold(
-      backgroundColor: bgLight,
-      appBar: AppBar(
-        title: Text(
-          l10n.addCaffeineRecord,
-          style: const TextStyle(
-            color: primaryColor,
-            fontWeight: FontWeight.bold,
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
+        backgroundColor: bgLight,
+        appBar: AppBar(
+          title: Text(
+            l10n.addCaffeineRecord,
+            style: const TextStyle(
+              color: primaryColor,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          backgroundColor: Colors.white.withValues(alpha: 0.9),
+          elevation: 1,
+          shadowColor: Colors.black12,
+          iconTheme: const IconThemeData(color: primaryColor),
         ),
-        backgroundColor: Colors.white.withValues(alpha: 0.9),
-        elevation: 1,
-        shadowColor: Colors.black12,
-        iconTheme: const IconThemeData(color: primaryColor),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.caffeineIntro,
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Center(child: _buildEntryModeSelector(primaryColor)),
-              const SizedBox(height: 26),
-              if (_entryMode == _CaffeineEntryMode.catalog)
-                _buildCatalogSelector(primaryColor, accentColor)
-              else
-                _buildManualEstimator(primaryColor, accentColor),
-              const SizedBox(height: 12),
-              _buildEstimateBox(primaryColor, accentColor),
-              const SizedBox(height: 20),
-              TextField(
-                controller: takingTimeController,
-                keyboardType: TextInputType.datetime,
-                decoration: InputDecoration(
-                  labelText: l10n.drinkingTime,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+        body: AbsorbPointer(
+          absorbing: _isSaving,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.caffeineIntro,
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    textAlign: TextAlign.center,
                   ),
-                  prefixIcon: const Icon(
-                    Icons.access_time_rounded,
-                    color: primaryColor,
-                  ),
-                  helperText: l10n.dateTimeHelper,
-                  suffixIcon: IconButton(
-                    tooltip: l10n.chooseDateTime,
-                    icon: const Icon(Icons.calendar_month_outlined),
-                    onPressed: () => _pickDateTime(takingTimeController),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 34),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _submitData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 5,
-                  ),
-                  icon: const Icon(Icons.save),
-                  label: Text(
-                    l10n.saveCaffeine,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 20),
+                  Center(child: _buildEntryModeSelector(primaryColor)),
+                  const SizedBox(height: 26),
+                  if (_entryMode == _CaffeineEntryMode.catalog)
+                    _buildCatalogSelector(primaryColor, accentColor)
+                  else
+                    _buildManualEstimator(primaryColor, accentColor),
+                  const SizedBox(height: 12),
+                  _buildEstimateBox(primaryColor, accentColor),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: takingTimeController,
+                    keyboardType: TextInputType.datetime,
+                    decoration: InputDecoration(
+                      labelText: l10n.drinkingTime,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.access_time_rounded,
+                        color: primaryColor,
+                      ),
+                      helperText: l10n.dateTimeHelper,
+                      suffixIcon: IconButton(
+                        tooltip: l10n.chooseDateTime,
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        onPressed: () => _pickDateTime(takingTimeController),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 34),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      key: const ValueKey('caffeine-save'),
+                      onPressed: _isSaving ? null : _submitData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 5,
+                      ),
+                      icon: const Icon(Icons.save),
+                      label: Text(
+                        _isSaving ? l10n.saving : l10n.saveCaffeine,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

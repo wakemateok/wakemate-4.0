@@ -7,7 +7,8 @@ import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   final String userId;
-  const SettingsPage({super.key, required this.userId});
+  final http.Client? client;
+  const SettingsPage({super.key, required this.userId, this.client});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -22,6 +23,9 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _bmiController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isSaving = false;
+  bool _loadStarted = false;
+  late final http.Client _client;
   static const Duration _requestTimeout = Duration(seconds: 60);
   final String baseUrl = ApiConfig.baseUrl;
   String? _existingRecordId;
@@ -36,16 +40,29 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _loadUserSettings();
+    _client = widget.client ?? http.Client();
     _heightController.addListener(_calculateBMI);
     _weightController.addListener(_calculateBMI);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadStarted) return;
+    _loadStarted = true;
+    _loadUserSettings();
   }
 
   void _calculateBMI() {
     final double? height = double.tryParse(_heightController.text);
     final double? weight = double.tryParse(_weightController.text);
 
-    if (height != null && weight != null && height > 0) {
+    if (height != null &&
+        weight != null &&
+        height.isFinite &&
+        weight.isFinite &&
+        height > 0 &&
+        weight > 0) {
       final double bmi = weight / ((height / 100) * (height / 100));
       _bmiController.text = bmi.toStringAsFixed(2);
     } else {
@@ -57,12 +74,14 @@ class _SettingsPageState extends State<SettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     setState(() => _isLoading = true);
     try {
-      final res = await http
+      final res = await _client
           .get(
             Uri.parse('$baseUrl/users_body_info/?user_id=${widget.userId}'),
             headers: {'Content-Type': 'application/json'},
           )
           .timeout(_requestTimeout);
+
+      if (!mounted) return;
 
       if (res.statusCode == 200) {
         final List data = jsonDecode(res.body);
@@ -70,7 +89,11 @@ class _SettingsPageState extends State<SettingsPage> {
           final userData = data[0];
           _existingRecordId = userData['user_id']?.toString();
           setState(() {
-            _gender = userData['gender'];
+            _gender = switch (userData['gender']?.toString().toLowerCase()) {
+              'm' || 'male' => 'M',
+              'f' || 'female' => 'F',
+              _ => null,
+            };
             _ageController.text = userData['age']?.toString() ?? '';
             _heightController.text = userData['height']?.toString() ?? '';
             _weightController.text = userData['weight']?.toString() ?? '';
@@ -110,6 +133,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveSettings() async {
+    if (_isSaving || _isLoading) return;
     final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate() || _gender == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _isSaving = true);
 
     final body = {
       "user_id": widget.userId,
@@ -132,7 +156,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       http.Response res;
 
-      res = await http
+      res = await _client
           .post(
             Uri.parse('$baseUrl/users_body_info/'),
             headers: {'Content-Type': 'application/json'},
@@ -175,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -203,6 +227,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
+    if (widget.client == null) _client.close();
     _ageController.dispose();
     _heightController.dispose();
     _weightController.dispose();
@@ -213,193 +238,201 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      backgroundColor: _backgroundColor,
-      appBar: AppBar(
-        title: Text(
-          l10n.bodySettingsTitle,
-          style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
+        backgroundColor: _backgroundColor,
+        appBar: AppBar(
+          title: Text(
+            l10n.bodySettingsTitle,
+            style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: IconThemeData(color: _primaryColor),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: IconThemeData(color: _primaryColor),
-      ),
-      body:
-          _isLoading && _existingRecordId == null
-              ? Center(child: CircularProgressIndicator(color: _accentColor))
-              : SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  24,
-                  24,
-                  MediaQuery.of(context).viewPadding.bottom + 32,
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 10),
-                      Text(
-                        l10n.genderLabel,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _textColor,
+        body:
+            _isLoading && _existingRecordId == null
+                ? Center(child: CircularProgressIndicator(color: _accentColor))
+                : SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    24,
+                    24,
+                    MediaQuery.of(context).viewPadding.bottom + 32,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 10),
+                        Text(
+                          l10n.genderLabel,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _textColor,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
+                        const SizedBox(height: 8),
+                        Material(
                           color: _cardColor,
                           borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
-                              spreadRadius: 1,
-                              blurRadius: 5,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: RadioListTile<String>(
-                                title: Text(
-                                  l10n.maleLabel,
-                                  style: TextStyle(color: _textColor),
-                                ),
-                                value: "M",
-                                groupValue: _gender,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _gender = value;
-                                  });
-                                },
-                                activeColor: _accentColor,
-                              ),
-                            ),
-                            Expanded(
-                              child: RadioListTile<String>(
-                                title: Text(
-                                  l10n.femaleLabel,
-                                  style: TextStyle(color: _textColor),
-                                ),
-                                value: "F",
-                                groupValue: _gender,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _gender = value;
-                                  });
-                                },
-                                activeColor: _accentColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildTextFormField(
-                        controller: _ageController,
-                        labelText: l10n.ageLabel,
-                        hintText: l10n.ageHint,
-                        keyboardType: TextInputType.number,
-                        prefixIcon: Icons.cake_outlined,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return l10n.ageRequired;
-                          }
-                          if (int.tryParse(value) == null ||
-                              int.parse(value) <= 0) {
-                            return l10n.invalidAge;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextFormField(
-                        controller: _heightController,
-                        labelText: l10n.heightLabel,
-                        hintText: l10n.heightHint,
-                        keyboardType: TextInputType.number,
-                        prefixIcon: Icons.height,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return l10n.heightRequired;
-                          }
-                          if (double.tryParse(value) == null ||
-                              double.parse(value) <= 0) {
-                            return l10n.invalidHeight;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextFormField(
-                        controller: _weightController,
-                        labelText: l10n.weightLabel,
-                        hintText: l10n.weightHint,
-                        keyboardType: TextInputType.number,
-                        prefixIcon: Icons.scale,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return l10n.weightRequired;
-                          }
-                          if (double.tryParse(value) == null ||
-                              double.parse(value) <= 0) {
-                            return l10n.invalidWeight;
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextFormField(
-                        controller: _bmiController,
-                        labelText: "BMI",
-                        hintText: l10n.bmiHint,
-                        keyboardType: TextInputType.number,
-                        prefixIcon: Icons.calculate,
-                        readOnly: true,
-                        fillColor: Colors.grey[200],
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _saveSettings,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primaryColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 5,
-                          ),
-                          icon:
-                              _isLoading
-                                  ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: RadioListTile<String>(
+                                    title: Text(
+                                      l10n.maleLabel,
+                                      style: TextStyle(color: _textColor),
                                     ),
-                                  )
-                                  : const Icon(Icons.save),
-                          label: Text(
-                            _isLoading ? l10n.saving : l10n.saveSettings,
-                            style: const TextStyle(fontSize: 18),
+                                    value: "M",
+                                    groupValue: _gender,
+                                    onChanged:
+                                        _isSaving
+                                            ? null
+                                            : (value) {
+                                              setState(() {
+                                                _gender = value;
+                                              });
+                                            },
+                                    activeColor: _accentColor,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: RadioListTile<String>(
+                                    title: Text(
+                                      l10n.femaleLabel,
+                                      style: TextStyle(color: _textColor),
+                                    ),
+                                    value: "F",
+                                    groupValue: _gender,
+                                    onChanged:
+                                        _isSaving
+                                            ? null
+                                            : (value) {
+                                              setState(() {
+                                                _gender = value;
+                                              });
+                                            },
+                                    activeColor: _accentColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        _buildTextFormField(
+                          controller: _ageController,
+                          labelText: l10n.ageLabel,
+                          hintText: l10n.ageHint,
+                          keyboardType: TextInputType.number,
+                          prefixIcon: Icons.cake_outlined,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return l10n.ageRequired;
+                            }
+                            if (int.tryParse(value) == null ||
+                                int.parse(value) <= 0) {
+                              return l10n.invalidAge;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextFormField(
+                          controller: _heightController,
+                          labelText: l10n.heightLabel,
+                          hintText: l10n.heightHint,
+                          keyboardType: TextInputType.number,
+                          prefixIcon: Icons.height,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return l10n.heightRequired;
+                            }
+                            if (double.tryParse(value) == null ||
+                                !double.parse(value).isFinite ||
+                                double.parse(value) <= 0) {
+                              return l10n.invalidHeight;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextFormField(
+                          controller: _weightController,
+                          labelText: l10n.weightLabel,
+                          hintText: l10n.weightHint,
+                          keyboardType: TextInputType.number,
+                          prefixIcon: Icons.scale,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return l10n.weightRequired;
+                            }
+                            if (double.tryParse(value) == null ||
+                                !double.parse(value).isFinite ||
+                                double.parse(value) <= 0) {
+                              return l10n.invalidWeight;
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextFormField(
+                          controller: _bmiController,
+                          labelText: "BMI",
+                          hintText: l10n.bmiHint,
+                          keyboardType: TextInputType.number,
+                          prefixIcon: Icons.calculate,
+                          readOnly: true,
+                          fillColor: Colors.grey[200],
+                        ),
+                        const SizedBox(height: 32),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 55),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  _isLoading || _isSaving
+                                      ? null
+                                      : _saveSettings,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 5,
+                              ),
+                              icon:
+                                  _isSaving
+                                      ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : const Icon(Icons.save),
+                              label: Text(
+                                _isSaving ? l10n.saving : l10n.saveSettings,
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+      ),
     );
   }
 
@@ -440,7 +473,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       keyboardType: keyboardType,
       validator: validator,
-      readOnly: readOnly,
+      readOnly: readOnly || _isSaving,
       style: TextStyle(color: _textColor),
     );
   }

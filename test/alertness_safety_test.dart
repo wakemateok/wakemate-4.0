@@ -7,8 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/screens/alertness_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   const target = ValueKey('alertness-response-target');
 
   Future<void> openTest(

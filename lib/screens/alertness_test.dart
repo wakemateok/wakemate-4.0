@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 
 enum AlertnessTestVersion { brief, pvtb3Minute }
 
@@ -688,6 +689,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     if (res.statusCode != 200 && res.statusCode != 201) {
       throw _formatSubmitError(res, l10n);
     }
+    await invalidateFutureRecommendations();
   }
 
   String _formatSubmitError(http.Response res, AppLocalizations l10n) {

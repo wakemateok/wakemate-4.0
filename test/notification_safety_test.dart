@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:my_app/services/notification_service.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -196,6 +197,47 @@ void main() {
     expect(calls.where((call) => call.method == 'zonedSchedule').length, 2);
     expect(pending.length, 1);
   });
+
+  test(
+    'cancelling old reminders does not need notification permission',
+    () async {
+      await replace([
+        recommendation(DateTime.now().add(const Duration(hours: 2))),
+      ]);
+      allowed = false;
+      await service.cancelCaffeineReminders();
+      expect(pending, isEmpty);
+      expect(
+        (await service.loadNotificationHistory()).single.status,
+        'cancelled',
+      );
+    },
+  );
+
+  test(
+    'changed input removes future cache and schedules but preserves history',
+    () async {
+      final future = recommendation(
+        DateTime.now().add(const Duration(hours: 2)),
+      );
+      final past = recommendation(
+        DateTime.now().subtract(const Duration(days: 1)),
+      );
+      await replace([future]);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'caffeine_recommendations',
+        jsonEncode([past, future]),
+      );
+      await invalidateFutureRecommendations(notifications: service);
+      expect(pending, isEmpty);
+      expect(jsonDecode(prefs.getString('caffeine_recommendations')!), [past]);
+      expect(
+        (await service.loadNotificationHistory()).single.status,
+        'cancelled',
+      );
+    },
+  );
 
   test('legacy duplicate history is collapsed on read', () async {
     final now = DateTime.now().toUtc();

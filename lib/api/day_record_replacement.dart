@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 
 class RecordSaveException implements Exception {
   const RecordSaveException(this.code);
@@ -54,6 +55,9 @@ Future<void> replaceDayRecords({
           throw RecordSaveException(
             decoded['detail']?.toString() ?? 'save_failed',
           );
+        }
+        if (decoded['changed'] != false) {
+          await invalidateFutureRecommendations();
         }
         return;
       } on TimeoutException {

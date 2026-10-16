@@ -6,6 +6,7 @@ import 'package:my_app/screens/alertness_test.dart';
 import 'package:my_app/screens/notification_center_page.dart';
 import 'package:my_app/screens/personalSettingsPage.dart';
 import 'package:my_app/screens/questionnaire_prompt_page.dart';
+import 'package:my_app/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomDrawer extends StatelessWidget {
@@ -71,6 +72,26 @@ class CustomDrawer extends StatelessWidget {
   }
 
   Future<void> _logout(BuildContext context) async {
+    try {
+      await NotificationService.instance.cancelCaffeineReminders();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(switch (Localizations.localeOf(
+              context,
+            ).languageCode) {
+              'id' =>
+                'Pengingat lama belum dapat dibatalkan. Coba keluar lagi.',
+              'en' =>
+                'Previous reminders could not be cancelled. Please try signing out again.',
+              _ => '尚未成功取消舊提醒，請再試一次登出。',
+            }),
+          ),
+        );
+      }
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final hasSeenBaselineQuestionnaire =
         prefs.getBool(baselineQuestionnairePromptSeenKey) ?? false;
@@ -95,11 +116,11 @@ class CustomDrawer extends StatelessWidget {
     final displayName =
         userName.trim().isEmpty ? l10n.userFallback : userName.trim();
     final showBriefAlertness = _alertnessMode != 'pvtb';
-    final showPvtbAlertness = _alertnessMode != 'brief';
+    final showPvtbAlertness = !['brief', 'legacy'].contains(_alertnessMode);
 
     return Drawer(
       child: SafeArea(
-        child: Container(
+        child: Material(
           color: _lightColor,
           child: Column(
             children: [
@@ -286,7 +307,7 @@ class CustomDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                  'WakeMate v1.0.0',
+                  'WakeMate v1.0.2',
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,

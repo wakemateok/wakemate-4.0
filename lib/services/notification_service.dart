@@ -252,6 +252,13 @@ class NotificationService {
         .length;
   }
 
+  Future<void> cancelCaffeineReminders() => _runExclusive(() async {
+    await initialize();
+    if (!_supported) return;
+    await _cancelPreviousReminders();
+    await _plugin.cancel(id: 1001);
+  });
+
   Future<bool> _scheduleCaffeineReminder({
     required int id,
     required String title,

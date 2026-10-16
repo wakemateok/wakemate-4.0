@@ -1,12 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:my_app/api/day_record_replacement.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    SharedPreferences.setMockInitialValues({});
+  });
+  tearDown(() => debugDefaultTargetPlatformOverride = null);
   Future<void> save(
     http.Client client, {
     Duration timeout = const Duration(seconds: 1),

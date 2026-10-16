@@ -61,8 +61,8 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted) return;
     setState(() {
-      _totalCaffeine = prefs.getDouble('caffeine_$dateKey') ?? 0;
-      _totalSleep = prefs.getDouble('sleep_$dateKey') ?? 0;
+      _totalCaffeine = prefs.getDouble('caffeine_${widget.userId}_$dateKey') ?? 0;
+      _totalSleep = prefs.getDouble('sleep_${widget.userId}_$dateKey') ?? 0;
     });
   }
 

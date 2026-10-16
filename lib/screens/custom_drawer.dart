@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show appFlavor;
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/screens/LanguageSettingPage.dart';
-import 'package:my_app/screens/LoginPage.dart';
 import 'package:my_app/screens/alertness_test.dart';
 import 'package:my_app/screens/notification_center_page.dart';
 import 'package:my_app/screens/personalSettingsPage.dart';
-import 'package:my_app/screens/questionnaire_prompt_page.dart';
-import 'package:my_app/services/notification_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_app/services/auth_service.dart';
+import 'package:my_app/utils/auth_text.dart';
+import 'package:my_app/screens/change_password_page.dart';
 
 class CustomDrawer extends StatelessWidget {
-  static const String _alertnessMode = String.fromEnvironment(
+  static const String _configuredMode = String.fromEnvironment(
     'WAKEMATE_ALERTNESS_MODE',
-    defaultValue: 'combined',
+    defaultValue: '',
   );
+  static String get _alertnessMode =>
+      _configuredMode.isNotEmpty
+          ? _configuredMode
+          : appFlavor == 'legacy'
+          ? 'brief'
+          : appFlavor == 'pvtb'
+          ? 'pvtb'
+          : 'combined';
 
   final String userId;
   final String userName;
@@ -73,40 +81,20 @@ class CustomDrawer extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      await NotificationService.instance.cancelCaffeineReminders();
-    } catch (_) {
+      await AuthService.instance.signOut();
+    } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(switch (Localizations.localeOf(
-              context,
-            ).languageCode) {
-              'id' =>
-                'Pengingat lama belum dapat dibatalkan. Coba keluar lagi.',
-              'en' =>
-                'Previous reminders could not be cancelled. Please try signing out again.',
-              _ => '尚未成功取消舊提醒，請再試一次登出。',
-            }),
+            content: Text(
+              authText(
+                error is AuthException ? error.code : 'server_unavailable',
+                Localizations.localeOf(context).languageCode,
+              ),
+            ),
           ),
         );
       }
-      return;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    final hasSeenBaselineQuestionnaire =
-        prefs.getBool(baselineQuestionnairePromptSeenKey) ?? false;
-
-    await prefs.clear();
-    if (hasSeenBaselineQuestionnaire) {
-      await prefs.setBool(baselineQuestionnairePromptSeenKey, true);
-    }
-
-    if (context.mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false,
-      );
     }
   }
 
@@ -271,6 +259,23 @@ class CustomDrawer extends StatelessWidget {
                     ),
                     _buildDrawerItem(
                       context,
+                      icon: Icons.lock_reset,
+                      title: authText(
+                        'changePassword',
+                        Localizations.localeOf(context).languageCode,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChangePasswordPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildDrawerItem(
+                      context,
                       icon: Icons.language_outlined,
                       title: l10n.languageSettingsTitle,
                       onTap: () {
@@ -307,7 +312,7 @@ class CustomDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                  'WakeMate v1.0.2',
+                  'WakeMate v1.1.0',
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,

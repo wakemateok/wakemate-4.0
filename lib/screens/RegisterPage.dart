@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
+import 'package:my_app/utils/auth_text.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 //import 'LoginPage.dart';
 
@@ -34,10 +36,17 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // 這個非同步函數處理使用者註冊流程
   Future<void> _registerUser() async {
+    if (isLoading) return;
     final l10n = AppLocalizations.of(context)!;
     final name = nameController.text.trim();
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+    final password = passwordController.text;
+    if (password.runes.length < 12 || utf8.encode(password).length > 72) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authText('passwordPolicy', l10n.localeName))),
+      );
+      return;
+    }
 
     // 在發送請求前，先進行客戶端的基本驗證
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
@@ -67,11 +76,13 @@ class _RegisterPageState extends State<RegisterPage> {
         "created_at": DateTime.now().toIso8601String(),
       });
 
-      final res = await http.post(
-        Uri.parse('$baseUrl/users/'), // 註冊的 API 路徑
-        headers: headers,
-        body: body,
-      );
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/users/'), // 註冊的 API 路徑
+            headers: headers,
+            body: body,
+          )
+          .timeout(const Duration(seconds: 60));
 
       // 檢查 Widget 是否仍然在畫面上，以避免在銷毀後操作 context
       if (!mounted) return;
@@ -91,8 +102,11 @@ class _RegisterPageState extends State<RegisterPage> {
       } else {
         // 處理所有其他伺服器端錯誤
         try {
-          final errorMsg =
-              jsonDecode(res.body)['error'] ?? l10n.serverUnknownError;
+          final detail = jsonDecode(res.body)['detail'];
+          final errorMsg = authText(
+            detail is String ? detail : 'server_unavailable',
+            l10n.localeName,
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("${l10n.registerFailedPrefix}: $errorMsg")),
           );
@@ -109,12 +123,13 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       // 捕捉網路連線等例外
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.serverConnectionError)));
     } finally {
       // 無論成功或失敗，最後都將 loading 狀態設回 false
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 

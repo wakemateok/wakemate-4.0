@@ -43,7 +43,7 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
     if (mounted) setState(() => _loading = true);
 
     final prefs = await SharedPreferences.getInstance();
-    final dataStr = prefs.getString('caffeine_recommendations') ?? '[]';
+    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
 
     try {
       final List<dynamic> data =
@@ -67,7 +67,7 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
 
   Future<void> _clearDataForSelectedDate() async {
     final prefs = await SharedPreferences.getInstance();
-    final dataStr = prefs.getString('caffeine_recommendations') ?? '[]';
+    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
     List<dynamic> data = dataStr.isNotEmpty ? jsonDecode(dataStr) : [];
 
     final selectedDateStr = DateFormat(
@@ -85,7 +85,7 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
               selectedDateStr;
         }).toList();
 
-    await prefs.setString('caffeine_recommendations', jsonEncode(data));
+    await prefs.setString('caffeine_recommendations_${widget.userId}', jsonEncode(data));
 
     if (mounted) {
       setState(() => _allData = data);

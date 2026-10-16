@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:my_app/api/authenticated_http.dart' as http;
 import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
@@ -40,7 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    _client = widget.client ?? http.Client();
+    _client = widget.client ?? http.authenticatedClient();
     _heightController.addListener(_calculateBMI);
     _weightController.addListener(_calculateBMI);
   }

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/api/taipei_time.dart';
@@ -12,6 +12,7 @@ import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/notification_service.dart';
 import 'package:my_app/utils/recommendation_deduplication.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_app/services/auth_service.dart';
 
 import 'CaffeineHistory.dart';
 
@@ -92,7 +93,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     List<Map<String, dynamic>> newEntries,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    final dataStr = prefs.getString('caffeine_recommendations') ?? '[]';
+    if (!mounted || AuthService.instance.userId != widget.userId) return;
+    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
     List<Map<String, dynamic>> currentHistory;
     try {
       currentHistory = recommendationMapsFrom(json.decode(dataStr));
@@ -122,7 +124,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
     currentHistory.addAll(dedupeRecommendations(newEntries));
     await prefs.setString(
-      'caffeine_recommendations',
+      'caffeine_recommendations_${widget.userId}',
       json.encode(dedupeRecommendations(currentHistory)),
     );
   }
@@ -287,6 +289,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     required List<dynamic> entries,
     required String languageCode,
   }) async {
+    if (!mounted || AuthService.instance.userId != widget.userId) return;
     var scheduledCount = 0;
 
     try {

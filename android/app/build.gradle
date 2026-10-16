@@ -10,11 +10,25 @@ plugins {
     id 'dev.flutter.flutter-gradle-plugin'
 }
 
+def releaseSigning = [
+    storeFile: System.getenv('WAKEMATE_KEYSTORE_FILE'),
+    storePassword: System.getenv('WAKEMATE_KEYSTORE_PASSWORD'),
+    keyAlias: System.getenv('WAKEMATE_KEY_ALIAS'),
+    keyPassword: System.getenv('WAKEMATE_KEY_PASSWORD')
+]
+def hasReleaseSigning = releaseSigning.values().every { it != null && !it.isEmpty() }
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.project == project && it.name.toLowerCase().contains('release') }
+            && !hasReleaseSigning) {
+        throw new GradleException('Release signing is required. Use scripts/build_signed_apks.ps1.')
+    }
+}
+
 android {
     namespace "com.example.my_app"
     compileSdkVersion flutter.compileSdkVersion
 
-    ndkVersion "27.0.12077973"
+    ndkVersion "28.2.13676358"
 
     defaultConfig {
         applicationId "com.example.my_app"
@@ -50,9 +64,20 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        production {
+            if (hasReleaseSigning) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.production
         }
     }
 }

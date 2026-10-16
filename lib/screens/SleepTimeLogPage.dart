@@ -146,6 +146,7 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
           },
         ],
       );
+      if (!mounted) return;
       await _handleSuccessfulSave(dtStart, dtEnd);
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -163,7 +164,8 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
     final totalHours = duration.inMinutes / 60.0;
     final prefs = await SharedPreferences.getInstance();
     final dateKey = DateFormat('yyyy-MM-dd').format(dtEnd);
-    await prefs.setDouble('sleep_$dateKey', totalHours);
+    if (!mounted) return;
+    await prefs.setDouble('sleep_${widget.userId}_$dateKey', totalHours);
 
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;

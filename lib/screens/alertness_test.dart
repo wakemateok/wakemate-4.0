@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:my_app/api/authenticated_http.dart' as http;
 import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
@@ -689,7 +689,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
     if (res.statusCode != 200 && res.statusCode != 201) {
       throw _formatSubmitError(res, l10n);
     }
-    await invalidateFutureRecommendations();
+    await invalidateFutureRecommendations(userId: widget.userId);
   }
 
   String _formatSubmitError(http.Response res, AppLocalizations l10n) {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:my_app/services/recommendation_invalidation.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
@@ -290,7 +290,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        await invalidateFutureRecommendations();
+        await invalidateFutureRecommendations(userId: widget.userId);
         _showSnackBar(l10n.updated, color: _accentColor);
         _refreshHistoryWithSetState();
         return true;
@@ -336,7 +336,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        await invalidateFutureRecommendations();
+        await invalidateFutureRecommendations(userId: widget.userId);
         _showSnackBar(l10n.deleted, color: _accentColor);
         _refreshHistoryWithSetState();
       } else {

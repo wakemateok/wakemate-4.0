@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'home_page.dart';
+import 'package:my_app/services/auth_service.dart';
+import 'package:my_app/utils/auth_text.dart';
 import 'RegisterPage.dart';
-import 'package:intl/intl.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,7 +16,6 @@ class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  final String baseUrl = 'https://wakemate-api-4-0-qtgs.onrender.com';
   bool isLoading = false;
 
   // 🎨 色彩主題 (與您上次的優化設計一致)
@@ -37,147 +33,36 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // **🎯 修改：將使用者資訊儲存到 SharedPreferences**
-  Future<void> _saveLoginInfo(String userId, String email, String name) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userId', userId);
-    await prefs.setString('userName', name.trim());
-    await prefs.setString('userEmail', email);
-    await prefs.setBool('isLoggedIn', true);
-  }
-
   Future<void> _loginUser() async {
+    if (isLoading) return;
     final l10n = AppLocalizations.of(context)!;
-    // ✂️ 移除 name 相關邏輯
     final email = emailController.text.trim();
-    final password = passwordController.text.trim();
-
-    // 📌 檢查：現在只需檢查 Email 與密碼
+    final password = passwordController.text;
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(l10n.loginMissingCredentials)));
       return;
     }
-
     setState(() => isLoading = true);
-
     try {
-      final headers = {'Content-Type': 'application/json'};
-      // **🎯 修改：API 請求 Body 僅包含 Email 和 Password**
-      final body = jsonEncode({
-        // "name": name, // 移除 name
-        "email": email,
-        "password": password,
-      });
-
-      final res = await http.post(
-        Uri.parse('$baseUrl/login/'),
-        headers: headers,
-        body: body,
-      );
-
-      print('Response Status Code: ${res.statusCode}');
-      print('Response Body: ${res.body}');
-
-      if (!mounted) return;
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final String? uuidFromServer =
-            data['user_id']?.toString() ?? data['id']?.toString();
-        final String nameFromServer =
-            data['name']?.toString().trim().isNotEmpty == true
-                ? data['name'].toString().trim()
-                : l10n.userFallback;
-
-        if (uuidFromServer != null && uuidFromServer.isNotEmpty) {
-          await _saveLoginInfo(uuidFromServer, email, nameFromServer);
-          if (!mounted) return;
-
-          final now = DateFormat('HH:mm').format(DateTime.now());
-          final snackBar = SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_outline, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "${l10n.loginSuccessPrefix}! $now",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: _accentColor,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            margin: const EdgeInsets.all(16),
-          );
-          ScaffoldMessenger.of(context).showSnackBar(snackBar);
-
-          // 導航到主頁面
-          // ⚠️ 注意：HomePage 現在需要處理 nameFromServer 可能為 null/'用戶' 的情況
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => HomePage(
-                    userId: uuidFromServer,
-                    // 將從伺服器取得的名稱或預設值傳入
-                    userName: nameFromServer,
-                    email: emailController.text.trim(),
-                  ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(l10n.loginMissingUserId)));
-          print('Response Body: ${res.body}');
-        }
-      } else if (res.statusCode == 401) {
+      await AuthService.instance.login(email, password);
+    } catch (error) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n.loginInvalidCredentials), // 📌 更新提示文字
+            content: Text(
+              authText(
+                error is AuthException ? error.code : 'server_unavailable',
+                l10n.localeName,
+              ),
+            ),
             backgroundColor: _errorColor,
           ),
         );
-      } else {
-        try {
-          final errorMsg =
-              jsonDecode(res.body)['error'] ?? l10n.serverUnknownError;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("${l10n.loginFailedPrefix}: $errorMsg"),
-              backgroundColor: _errorColor,
-            ),
-          );
-        } on FormatException {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "${l10n.loginFailedPrefix}: ${l10n.serverInvalidResponse}",
-              ),
-              backgroundColor: _errorColor,
-            ),
-          );
-        }
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(l10n.serverConnectionError),
-          backgroundColor: _errorColor,
-        ),
-      );
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 

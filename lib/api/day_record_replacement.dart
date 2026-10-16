@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/recommendation_invalidation.dart';
@@ -20,7 +20,7 @@ Future<void> replaceDayRecords({
   http.Client? client,
   Duration timeout = const Duration(seconds: 90),
 }) async {
-  final transport = client ?? http.Client();
+  final transport = client ?? http.authenticatedClient();
   final body = jsonEncode({
     'user_id': userId,
     'day': DateFormat('yyyy-MM-dd').format(selectedDate),
@@ -57,7 +57,7 @@ Future<void> replaceDayRecords({
           );
         }
         if (decoded['changed'] != false) {
-          await invalidateFutureRecommendations();
+          await invalidateFutureRecommendations(userId: userId);
         }
         return;
       } on TimeoutException {

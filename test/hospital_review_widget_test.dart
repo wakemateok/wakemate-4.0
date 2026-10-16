@@ -128,7 +128,7 @@ void main() {
         ).readAsBytes().then((b) => ByteData.sublistView(b)),
       );
       await icons.load();
-      final cupertino = FontLoader('CupertinoSystemText');
+      final cupertino = FontLoader('CupertinoSystemDisplay');
       cupertino.addFont(
         File(
           'C:/Windows/Fonts/msjh.ttc',
@@ -274,10 +274,12 @@ void main() {
         await tester.pump();
         await tester.tap(find.text(reviewText('date', language)));
         await tester.pumpAndSettle();
-        tester
-            .widget<CupertinoDatePicker>(find.byType(CupertinoDatePicker))
-            .onDateTimeChanged(DateTime(2026, 10, 21));
-        await tester.pump();
+        await tester.drag(
+          find.text(language == 'zh' ? '20日' : '20'),
+          const Offset(0, -32),
+          touchSlopY: 0,
+        );
+        await tester.pumpAndSettle();
         expect(find.text('2026/10/21 22:35'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await screenshot(tester, 'picker-$language-320');

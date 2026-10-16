@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/screens/alertness_test.dart';
+import 'package:my_app/utils/review_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -19,6 +20,8 @@ void main() {
     WidgetTester tester, {
     required bool pvtb,
     http.Client? client,
+    Locale locale = const Locale('en'),
+    double scale = 1,
   }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -26,7 +29,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
-        locale: const Locale('en'),
+        locale: locale,
+        builder:
+            (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(scale),
+                padding: const EdgeInsets.only(bottom: 48),
+                viewPadding: const EdgeInsets.only(bottom: 48),
+              ),
+              child: child!,
+            ),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
@@ -96,6 +108,35 @@ void main() {
     );
   }
 
+  for (final language in ['zh', 'en', 'id']) {
+    testWidgets(
+      '$language test feedback and KSS fit large text above navigation area',
+      (tester) async {
+        await openTest(
+          tester,
+          pvtb: true,
+          locale: Locale(language),
+          scale: 1.5,
+        );
+        await tester.pump(const Duration(minutes: 3));
+        await tester.pumpAndSettle();
+        tester.view.physicalSize = const Size(320, 640);
+        tester
+            .widget<DropdownButton<int>>(find.byType(DropdownButton<int>))
+            .onChanged!(8);
+        await tester.pumpAndSettle();
+        expect(find.text(reviewText('feedback', language)), findsOneWidget);
+        expect(find.text(reviewText('sleepyAdvice', language)), findsOneWidget);
+        final save = find.byKey(const ValueKey('alertness-save-result'));
+        await tester.ensureVisible(save);
+        await tester.pumpAndSettle();
+        expect(tester.getBottomRight(save).dy, lessThanOrEqualTo(592));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
   testWidgets(
     'PVT result stays open on failure, prevents double submit, and retries one timestamp',
     (tester) async {
@@ -116,6 +157,15 @@ void main() {
       await tester.pump(const Duration(minutes: 3));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Your test summary'), findsOneWidget);
+      tester
+          .widget<DropdownButton<int>>(find.byType(DropdownButton<int>))
+          .onChanged!(8);
+      await tester.pump();
+      expect(
+        find.textContaining('Rest first and avoid driving'),
+        findsOneWidget,
+      );
       final save = find.byKey(const ValueKey('alertness-save-result'));
       await tester.tap(save);
       await tester.pumpAndSettle();

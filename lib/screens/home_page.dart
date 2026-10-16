@@ -1,69 +1,239 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show appFlavor;
 import 'package:intl/intl.dart';
+import 'package:my_app/api/home_data.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/config/questionnaire_links.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
+import 'package:my_app/services/auth_service.dart';
+import 'package:my_app/services/notification_service.dart';
+import 'package:my_app/utils/recommendation_deduplication.dart';
+import 'package:my_app/utils/review_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'CaffeineHistory.dart';
 import 'CaffeineLogPage.dart';
-import 'CaffeineRecommendationPage.dart';
+import 'CaffeineHistory.dart';
 import 'SleepTimeLogPage.dart';
 import 'UserInputHistoryPage.dart';
 import 'WakeTimeLogPage.dart';
+import 'alertness_test.dart';
 import 'custom_drawer.dart';
+import 'drink_match_page.dart';
+import 'personalSettingsPage.dart';
 
 class HomePage extends StatefulWidget {
-  final String userId;
-  final String userName;
-  final String email;
-
+  final String userId, userName, email;
+  final HomeRepository? repository;
+  final bool showQuestionnaireReminder;
   const HomePage({
     super.key,
     required this.userId,
-    this.userName = "",
-    this.email = "",
+    this.userName = '',
+    this.email = '',
+    this.repository,
+    this.showQuestionnaireReminder = true,
   });
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  late DateTime _selectedDate;
-  late DateTime _focusedDate;
-
-  final Color _primaryColor = const Color(0xFF4B6B7A);
-  final Color _accentColor = const Color(0xFF8BB9A1);
-  final Color _bgLight = const Color(0xFFF9F9F7);
-  final Color _cardColor = Colors.white;
-
-  double _totalCaffeine = 0;
-  double _totalSleep = 0;
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  late DateTime _selectedDate, _focusedDate;
+  late final HomeRepository _repository;
+  HomeSnapshot? _snapshot;
+  bool _loading = true, _showGuide = false;
+  String? _error, _reminderSignature;
+  String? _lastLanguage;
+  int _requestEpoch = 0;
+  final Color _primaryColor = const Color(0xFF24534E);
+  final Color _accentColor = const Color(0xFF197F72);
   QuestionnaireLinkSet _questionnaireLinks = QuestionnaireLinks.fallback;
-  bool _isLoadingQuestionnaireLinks = true;
-  bool _showDailyQuestionnaireBadge = false;
+  bool _isLoadingQuestionnaireLinks = true,
+      _showDailyQuestionnaireBadge = false;
+  String get _language => Localizations.localeOf(context).languageCode;
+  String text(String key) => reviewText(key, _language);
+  bool get _pvtb =>
+      const String.fromEnvironment('WAKEMATE_ALERTNESS_MODE') == 'pvtb' ||
+      appFlavor == 'pvtb';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedDate = taipeiDateOnly(taipeiNow());
     _focusedDate = _selectedDate;
-    _loadDailyStats();
-    _loadQuestionnaireLinks();
+    _repository = widget.repository ?? HomeRepository();
+    _refreshData();
+    _loadGuide();
+    if (widget.showQuestionnaireReminder) {
+      _loadQuestionnaireLinks();
+    } else {
+      _isLoadingQuestionnaireLinks = false;
+    }
   }
 
-  Future<void> _loadDailyStats() async {
-    final prefs = await SharedPreferences.getInstance();
-    final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final language = _language;
+    final previous = _lastLanguage;
+    _lastLanguage = language;
+    if (previous != null && previous != language) {
+      _reminderSignature = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshData();
+      });
+    }
+  }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (widget.repository == null) _repository.close();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      _reminderSignature = null;
+      _refreshData();
+      if (widget.showQuestionnaireReminder) _refreshDailyQuestionnaireBadge();
+    }
+  }
+
+  Future<void> _loadGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted)
+      setState(
+        () =>
+            _showGuide =
+                prefs.getBool('home_guide_seen_${widget.userId}') != true,
+      );
+  }
+
+  Future<void> _hideGuide() async {
+    setState(() => _showGuide = false);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('home_guide_seen_${widget.userId}', true);
+  }
+
+  Future<void> _refreshData({bool recalculate = false}) async {
     if (!mounted) return;
-    setState(() {
-      _totalCaffeine = prefs.getDouble('caffeine_${widget.userId}_$dateKey') ?? 0;
-      _totalSleep = prefs.getDouble('sleep_${widget.userId}_$dateKey') ?? 0;
-    });
+    if (recalculate) _reminderSignature = null;
+    final epoch = ++_requestEpoch;
+    if (mounted)
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    try {
+      final snapshot = await _repository.load(
+        widget.userId,
+        recalculate: recalculate,
+      );
+      if (!mounted || epoch != _requestEpoch) return;
+      setState(() {
+        _snapshot = snapshot;
+        _loading = false;
+        _error = snapshot.calculationFailed ? 'calculationFailed' : null;
+      });
+      final signature = jsonEncode(
+        snapshot.recommendations
+            .map(
+              (row) => [
+                row['recommended_caffeine_intake_timing'],
+                row['recommended_caffeine_amount'],
+                row['source_data_latest_at'],
+              ],
+            )
+            .toList(),
+      );
+      if (_reminderSignature != signature) {
+        unawaited(
+          _syncRecommendations(
+            snapshot,
+            announce: recalculate && !snapshot.calculationFailed,
+            epoch: epoch,
+            signature: signature,
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted && epoch == _requestEpoch)
+        setState(() {
+          _loading = false;
+          _error = 'refreshFailed';
+        });
+    }
+  }
+
+  Future<void> _syncRecommendations(
+    HomeSnapshot snapshot, {
+    required bool announce,
+    required int epoch,
+    required String signature,
+  }) async {
+    if (!mounted || AuthService.instance.userId != widget.userId) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'caffeine_recommendations_${widget.userId}';
+      List<Map<String, dynamic>> previous;
+      try {
+        previous = recommendationMapsFrom(
+          jsonDecode(prefs.getString(key) ?? '[]'),
+        );
+      } catch (_) {
+        previous = [];
+      }
+      final now = taipeiNow();
+      final history = previous.where(
+        (row) => recommendationTiming(row)?.isBefore(now) == true,
+      );
+      if (!mounted ||
+          epoch != _requestEpoch ||
+          AuthService.instance.userId != widget.userId)
+        return;
+      await prefs.setString(
+        key,
+        jsonEncode(
+          dedupeRecommendations([...history, ...snapshot.recommendations]),
+        ),
+      );
+      if (!mounted ||
+          epoch != _requestEpoch ||
+          AuthService.instance.userId != widget.userId)
+        return;
+      final scheduled = await NotificationService.instance
+          .replaceCaffeineReminders(
+            recommendations: snapshot.recommendations,
+            languageCode: _language,
+            userId: widget.userId,
+          );
+      if (!mounted ||
+          epoch != _requestEpoch ||
+          AuthService.instance.userId != widget.userId)
+        return;
+      _reminderSignature = signature;
+      if (announce &&
+          mounted &&
+          epoch == _requestEpoch &&
+          AuthService.instance.userId == widget.userId)
+        await NotificationService.instance.showCalculationComplete(
+          recommendationCount: snapshot.recommendations.length,
+          scheduledCount: scheduled,
+          languageCode: _language,
+        );
+    } catch (_) {
+      if (epoch == _requestEpoch) _reminderSignature = null;
+      // Recommendation data remains usable when a phone notification permission is unavailable.
+    }
   }
 
   Future<void> _loadQuestionnaireLinks() async {
@@ -233,185 +403,375 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _navigateToRecommendationHistoryPage() async {
-    await Navigator.push(
+  Future<void> _openPage(Widget page) async {
+    final changed = await Navigator.of(
       context,
-      MaterialPageRoute(
-        builder:
-            (context) => CaffeineHistoryPage(
-              userId: widget.userId,
-              selectedDate: _selectedDate,
-            ),
-      ),
-    );
-    _loadDailyStats();
+    ).push(MaterialPageRoute(builder: (_) => page));
+    if (mounted) {
+      await _refreshData(
+        recalculate:
+            changed == true ||
+            page is SettingsPage ||
+            page is UserInputHistoryPage,
+      );
+    }
   }
 
-  void _navigateToUserInputHistoryPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => UserInputHistoryPage(
-              userId: widget.userId,
-              selectedDate: _selectedDate,
-            ),
-      ),
-    ).then((_) => _loadDailyStats());
-  }
-
-  void _showAddOptions(BuildContext context) {
+  void _showAddOptions() {
+    final day = taipeiDateOnly(_selectedDate);
     final l10n = AppLocalizations.of(context)!;
-
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: _cardColor,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
-      builder: (BuildContext context) {
-        final bottomPadding = MediaQuery.of(context).viewPadding.bottom + 32;
-
-        return SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.only(top: 15, bottom: bottomPadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 45,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(10),
+      builder:
+          (sheetContext) => SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('yyyy/MM/dd').format(day),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    l10n.addData,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor,
-                    ),
-                  ),
-                  const Divider(thickness: 0.8),
-                  _buildOptionTile(
-                    title: l10n.targetWakePeriod,
-                    icon: Icons.wb_sunny_outlined,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => TargetWakeTimePage(
-                                userId: widget.userId,
-                                selectedDate: _selectedDate,
-                              ),
+                    for (final entry in <(String, IconData, Widget)>[
+                      (
+                        l10n.actualSleepPeriod,
+                        Icons.bed_outlined,
+                        ActualSleepTimePage(
+                          userId: widget.userId,
+                          selectedDate: day,
                         ),
-                      ).then((_) => _loadDailyStats());
-                    },
-                  ),
-                  _buildOptionTile(
-                    title: l10n.actualSleepPeriod,
-                    icon: Icons.bed_outlined,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => ActualSleepTimePage(
-                                userId: widget.userId,
-                                selectedDate: _selectedDate,
-                              ),
+                      ),
+                      (
+                        l10n.targetWakePeriod,
+                        Icons.wb_sunny_outlined,
+                        TargetWakeTimePage(
+                          userId: widget.userId,
+                          selectedDate: day,
                         ),
-                      ).then((_) => _loadDailyStats());
-                    },
-                  ),
-                  _buildOptionTile(
-                    title: l10n.addCaffeineRecord,
-                    icon: Icons.local_cafe_outlined,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => CaffeineLogPage(
-                                userId: widget.userId,
-                                selectedDate: _selectedDate,
-                              ),
+                      ),
+                      (
+                        l10n.addCaffeineRecord,
+                        Icons.local_cafe_outlined,
+                        CaffeineLogPage(
+                          userId: widget.userId,
+                          selectedDate: day,
                         ),
-                      ).then((_) => _loadDailyStats());
-                    },
-                  ),
-                ],
+                      ),
+                    ])
+                      ListTile(
+                        leading: Icon(entry.$2, color: _accentColor),
+                        title: Text(entry.$1),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          _openPage(entry.$3);
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        );
-      },
     );
   }
 
-  Widget _buildOptionTile({
-    required String title,
-    required IconData icon,
-    required VoidCallback onTap,
+  Widget _guide() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  text('firstSteps'),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: _hideGuide,
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          for (final task in <(String, bool, Widget)>[
+            (
+              text('profile'),
+              _snapshot?.hasProfile == true,
+              SettingsPage(userId: widget.userId),
+            ),
+            (
+              text('sleep'),
+              _snapshot?.hasSleep == true,
+              ActualSleepTimePage(
+                userId: widget.userId,
+                selectedDate: _selectedDate,
+              ),
+            ),
+            (
+              text('wake'),
+              _snapshot?.hasWake == true,
+              TargetWakeTimePage(
+                userId: widget.userId,
+                selectedDate: _selectedDate,
+              ),
+            ),
+            (
+              text('test'),
+              _snapshot?.hasTest == true,
+              _pvtb
+                  ? AlertnessTestPage.pvtb(userId: widget.userId)
+                  : AlertnessTestPage(userId: widget.userId),
+            ),
+          ])
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                task.$2 ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: task.$2 ? _accentColor : null,
+              ),
+              title: Text(task.$1),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openPage(task.$3),
+            ),
+          const Divider(),
+        ],
+      ),
+    );
+  }
+
+  Widget _calendarCell(
+    DateTime day, {
+    bool selected = false,
+    bool outside = false,
   }) {
-    return ListTile(
-      leading: Icon(icon, color: _accentColor, size: 26),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          color: _primaryColor,
-          fontWeight: FontWeight.w600,
+    final stats = _snapshot?.summary(day);
+    final caffeine = stats?.caffeineMg ?? 0;
+    final sleep = stats?.sleepHours ?? 0;
+    var maxCaffeine = 1.0, maxSleep = 1.0;
+    for (final entry
+        in _snapshot?.days.entries ?? <MapEntry<String, DaySummary>>[]) {
+      if (entry.key.startsWith(
+        '${_focusedDate.year}-${_focusedDate.month.toString().padLeft(2, '0')}',
+      )) {
+        if (entry.value.caffeineMg > maxCaffeine)
+          maxCaffeine = entry.value.caffeineMg;
+        if (entry.value.sleepHours > maxSleep)
+          maxSleep = entry.value.sleepHours;
+      }
+    }
+    Widget amount(String value, Color color, double ratio) => Expanded(
+      child: Container(
+        alignment: Alignment.center,
+        width: double.infinity,
+        color: color.withValues(
+          alpha: ratio == 0 ? 0 : .12 + .4 * ratio.clamp(0, 1),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF20323B)),
+          ),
         ),
       ),
-      trailing: Icon(Icons.arrow_forward_ios, color: _accentColor, size: 18),
-      onTap: onTap,
+    );
+    return Semantics(
+      label:
+          '${dayKey(day)}, ${text('sleep')}: ${sleep.toStringAsFixed(1)} h, ${text('caffeine')}: ${caffeine.round()} mg',
+      selected: selected,
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: selected ? _accentColor : Colors.transparent,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Opacity(
+          opacity: outside ? .5 : 1,
+          child: Column(
+            children: [
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              amount(
+                _snapshot == null
+                    ? '-'
+                    : NumberFormat.compact(locale: _language).format(caffeine),
+                const Color(0xFFE0A32A),
+                caffeine / maxCaffeine,
+              ),
+              amount(
+                _snapshot == null ? '-' : sleep.toStringAsFixed(1),
+                const Color(0xFF329D8E),
+                sleep / maxSleep,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildMenuIcon() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Icon(Icons.menu, size: 30, color: _primaryColor),
-        if (_showDailyQuestionnaireBadge)
-          Positioned(
-            right: -2,
-            top: -2,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: Colors.redAccent,
-                shape: BoxShape.circle,
+  Widget _recommendations() {
+    final l10n = AppLocalizations.of(context)!;
+    final rows = _snapshot?.recommendationsOn(_selectedDate) ?? [];
+    final snapshot = _snapshot;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${DateFormat('MM/dd').format(_selectedDate)} ${text('recommendations')}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.recommendationHistory,
+                icon: const Icon(Icons.history),
+                onPressed:
+                    () => _openPage(
+                      CaffeineHistoryPage(
+                        userId: widget.userId,
+                        selectedDate: _selectedDate,
+                      ),
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_loading)
+            LinearProgressIndicator(semanticsLabel: text('updating')),
+          if (!_loading && snapshot != null && !snapshot.hasSleep)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.bed_outlined),
+              title: Text(text('missingSleep')),
+              trailing: const Icon(Icons.add),
+              onTap:
+                  () => _openPage(
+                    ActualSleepTimePage(
+                      userId: widget.userId,
+                      selectedDate: _selectedDate,
+                    ),
+                  ),
+            ),
+          if (!_loading && snapshot != null && !snapshot.hasWake)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.wb_sunny_outlined),
+              title: Text(text('missingWake')),
+              trailing: const Icon(Icons.add),
+              onTap:
+                  () => _openPage(
+                    TargetWakeTimePage(
+                      userId: widget.userId,
+                      selectedDate: _selectedDate,
+                    ),
+                  ),
+            ),
+          if (!_loading &&
+              snapshot != null &&
+              snapshot.hasSleep &&
+              snapshot.hasWake &&
+              !snapshot.calculationFailed &&
+              rows.isEmpty)
+            Text(text('noDose')),
+          for (final row in rows) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule),
+              title: Text(
+                '${DateFormat('HH:mm').format(recommendationTiming(row)!)} · ${row['recommended_caffeine_amount']} mg',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(l10n.recommendedAmount),
+              trailing: IconButton(
+                tooltip: text('drinkOptions'),
+                icon: const Icon(Icons.local_cafe_outlined),
+                onPressed:
+                    () => _openPage(
+                      DrinkMatchPage(
+                        userId: widget.userId,
+                        targetMg:
+                            (row['recommended_caffeine_amount'] as num)
+                                .toDouble(),
+                        recommendedAt: recommendationTiming(row)!,
+                      ),
+                    ),
               ),
             ),
-          ),
-      ],
+            const Divider(height: 1),
+          ],
+        ],
+      ),
     );
   }
+
+  Widget _menuIcon() => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      const Icon(Icons.menu),
+      if (_showDailyQuestionnaireBadge)
+        Positioned(
+          right: -2,
+          top: -2,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: const BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+    ],
+  );
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-
+    final summary = _snapshot?.summary(_selectedDate);
     return Scaffold(
-      backgroundColor: _bgLight,
+      backgroundColor: Colors.white,
       drawer: CustomDrawer(
         userId: widget.userId,
         userName: widget.userName,
         userEmail: widget.email,
+        onDataChanged: () => _refreshData(recalculate: true),
         showDailyQuestionnaireBadge: _showDailyQuestionnaireBadge,
         onDailyQuestionnaireTap:
             _isLoadingQuestionnaireLinks || !_questionnaireLinks.hasDailyLink
@@ -419,273 +779,199 @@ class _HomePageState extends State<HomePage> {
                 : () => _showDailyQuestionnaireDialog(markAsSeenOnClose: true),
       ),
       appBar: AppBar(
-        title: Text(
-          "WakeMate",
-          style: TextStyle(
-            color: _primaryColor,
-            fontWeight: FontWeight.w700,
-            fontSize: 24,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white.withValues(alpha: 0.9),
-        elevation: 3,
-        shadowColor: Colors.black12,
+        title: const FittedBox(fit: BoxFit.scaleDown, child: Text('WakeMate')),
+        backgroundColor: Colors.white,
+        foregroundColor: _primaryColor,
         leading: Builder(
           builder:
               (context) => IconButton(
-                icon: _buildMenuIcon(),
+                tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+                icon: _menuIcon(),
                 onPressed: () => Scaffold.of(context).openDrawer(),
               ),
         ),
+        actions: [
+          IconButton(
+            tooltip: text('guide'),
+            icon: const Icon(Icons.checklist_outlined),
+            onPressed: () => setState(() => _showGuide = !_showGuide),
+          ),
+          IconButton(
+            key: const ValueKey('home-refresh'),
+            tooltip: l10n.retry,
+            onPressed: _loading ? null : () => _refreshData(recalculate: true),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.1),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.caffeineIntakeToday,
-                          style: TextStyle(
-                            color: _primaryColor.withValues(alpha: 0.7),
-                            fontSize: 14,
+        child: RefreshIndicator(
+          onRefresh: () => _refreshData(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_showGuide) _guide(),
+                      if (_error != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            text(_error!),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${_totalCaffeine.toStringAsFixed(0)}${l10n.unitMg}",
-                          style: TextStyle(
-                            color: _primaryColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                      TableCalendar(
+                        locale: _language == 'zh' ? 'zh_TW' : _language,
+                        firstDay: DateTime(2020),
+                        lastDay: DateTime(2100, 12, 31),
+                        focusedDay: _focusedDate,
+                        rowHeight:
+                            76 +
+                            (MediaQuery.textScalerOf(context).scale(16) - 16)
+                                    .clamp(0, 40) *
+                                2,
+                        daysOfWeekHeight: 36,
+                        availableGestures: AvailableGestures.horizontalSwipe,
+                        selectedDayPredicate:
+                            (day) => isSameDay(day, _selectedDate),
+                        onDaySelected: (selected, focused) {
+                          setState(() {
+                            _selectedDate = taipeiDateOnly(selected);
+                            _focusedDate = taipeiDateOnly(focused);
+                          });
+                          _showAddOptions();
+                        },
+                        onPageChanged:
+                            (focused) => setState(
+                              () => _focusedDate = taipeiDateOnly(focused),
+                            ),
+                        headerStyle: const HeaderStyle(
+                          formatButtonVisible: false,
+                          titleCentered: true,
+                          titleTextStyle: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          l10n.sleepDurationToday,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            color: _primaryColor.withValues(alpha: 0.7),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${_totalSleep.toStringAsFixed(1)}${l10n.unitHours}",
-                          style: TextStyle(
-                            color: _accentColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: _cardColor,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(8),
-              child: TableCalendar(
-                firstDay: DateTime.utc(2000, 1, 1),
-                lastDay: DateTime.utc(2100, 12, 31),
-                focusedDay: _focusedDate,
-                selectedDayPredicate: (day) => isSameDay(day, _selectedDate),
-                onDaySelected: (selected, focused) {
-                  setState(() {
-                    _selectedDate = selected;
-                    _focusedDate = focused;
-                  });
-                  _loadDailyStats();
-                },
-                calendarStyle: CalendarStyle(
-                  cellMargin: const EdgeInsets.all(2),
-                  selectedDecoration: BoxDecoration(
-                    color: _accentColor,
-                    shape: BoxShape.circle,
-                  ),
-                  todayDecoration: BoxDecoration(
-                    color: _accentColor.withValues(alpha: 0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  defaultTextStyle: TextStyle(color: _primaryColor),
-                  weekendTextStyle: TextStyle(color: _primaryColor),
-                ),
-                headerStyle: HeaderStyle(
-                  formatButtonVisible: false,
-                  titleCentered: true,
-                  headerPadding: const EdgeInsets.symmetric(vertical: 15),
-                  titleTextStyle: TextStyle(
-                    color: _primaryColor,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  leftChevronIcon: Icon(
-                    Icons.chevron_left,
-                    color: _accentColor,
-                  ),
-                  rightChevronIcon: Icon(
-                    Icons.chevron_right,
-                    color: _accentColor,
-                  ),
-                ),
-                daysOfWeekStyle: DaysOfWeekStyle(
-                  weekdayStyle: TextStyle(
-                    color: _primaryColor.withValues(alpha: 0.8),
-                  ),
-                  weekendStyle: TextStyle(color: _accentColor),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _accentColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 3,
-                    ),
-                    onPressed: () => _showAddOptions(context),
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text(
-                      l10n.addRecord,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryColor,
-                      side: BorderSide(color: _primaryColor, width: 1.8),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: _navigateToUserInputHistoryPage,
-                    icon: const Icon(Icons.edit_note),
-                    label: Text(
-                      l10n.inputHistory,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 4,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => CaffeineRecommendationPage(
-                                userId: widget.userId,
-                                selectedDate: _selectedDate,
+                        calendarBuilders: CalendarBuilders(
+                          dowBuilder:
+                              (context, day) => Center(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    DateFormat.E(
+                                      _language == 'zh' ? 'zh_TW' : _language,
+                                    ).format(day),
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ),
                               ),
+                          defaultBuilder:
+                              (context, day, focused) => _calendarCell(day),
+                          todayBuilder:
+                              (context, day, focused) => _calendarCell(day),
+                          selectedBuilder:
+                              (context, day, focused) =>
+                                  _calendarCell(day, selected: true),
+                          outsideBuilder:
+                              (context, day, focused) =>
+                                  _calendarCell(day, outside: true),
                         ),
-                      ).then((_) => _loadDailyStats());
-                    },
-                    icon: const Icon(Icons.auto_graph, size: 22),
-                    label: Text(
-                      l10n.calculateRecommendation,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 8,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.local_cafe,
+                                color: Color(0xFFC28A13),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(child: Text('mg · ${text('caffeine')}')),
+                            ],
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bed, color: _accentColor, size: 20),
+                              const SizedBox(width: 6),
+                              Flexible(child: Text('h · ${text('sleep')}')),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Text(
+                        text('sleepByWakeDate'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF52636D),
+                        ),
+                      ),
+                      const Divider(height: 28),
+                      Text(
+                        DateFormat('yyyy/MM/dd').format(_selectedDate),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 8,
+                        children: [
+                          Text(
+                            '${text('caffeine')}: ${summary?.caffeineMg.round() ?? '-'} mg',
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                          Text(
+                            '${text('sleep')}: ${summary?.sleepHours.toStringAsFixed(1) ?? '-'} h',
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.icon(
+                            onPressed: _showAddOptions,
+                            icon: const Icon(Icons.add),
+                            label: Text(l10n.addRecord),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed:
+                                () => _openPage(
+                                  UserInputHistoryPage(
+                                    userId: widget.userId,
+                                    selectedDate: _selectedDate,
+                                  ),
+                                ),
+                            icon: const Icon(Icons.edit_note),
+                            label: Text(l10n.inputHistory),
+                          ),
+                        ],
+                      ),
+                      _recommendations(),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _accentColor,
-                      side: BorderSide(color: _accentColor, width: 2),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: _navigateToRecommendationHistoryPage,
-                    icon: const Icon(Icons.history, size: 22),
-                    label: Text(
-                      l10n.recommendationHistory,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );

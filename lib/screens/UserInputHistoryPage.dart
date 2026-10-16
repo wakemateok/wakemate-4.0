@@ -1,3 +1,4 @@
+import 'package:my_app/widgets/taipei_datetime_picker.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -194,31 +195,15 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
   }
 
   Future<void> _pickDateTime(TextEditingController controller) async {
-    final initialDateTime =
-        _parseInputDateTime(controller.text) ?? widget.selectedDate;
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDateTime,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-    if (pickedDate == null || !mounted) return;
-
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDateTime),
-    );
-    if (pickedTime == null) return;
-
-    final finalDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
+    DateTime initial;
+    try {
+      initial = parseTaipeiInput(controller.text);
+    } catch (_) {
+      initial = widget.selectedDate;
+    }
+    final selected = await showTaipeiDateTimePicker(context, initial: initial);
+    if (selected == null || !mounted) return;
+    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(selected);
   }
 
   Future<List<Map<String, dynamic>>> _fetchData(String endpoint) async {

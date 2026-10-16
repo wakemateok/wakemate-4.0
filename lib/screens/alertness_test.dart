@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/recommendation_invalidation.dart';
+import 'package:my_app/utils/review_text.dart';
 
 enum AlertnessTestVersion { brief, pvtb3Minute }
 
@@ -537,7 +538,7 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                                       saving
                                           ? null
                                           : (int? newValue) {
-                                            setInnerState(() {
+                                            refreshDialog(() {
                                               _selectedKssLevel = newValue;
                                             });
                                           },
@@ -547,6 +548,8 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
                             );
                           },
                         ),
+                        const Divider(height: 28),
+                        _buildFeedback(),
                       ],
                     ),
                   ),
@@ -655,6 +658,38 @@ class _AlertnessTestPageState extends State<AlertnessTestPage> {
         .map((d) => d.inMilliseconds)
         .reduce((a, b) => a + b);
     return totalMs / _reactionTimes.length;
+  }
+
+  Widget _buildFeedback() {
+    final language = Localizations.localeOf(context).languageCode;
+    String text(String key) => reviewText(key, language);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          text('feedback'),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text('${text('testRecorded')}: ${_reactionTimes.length}'),
+        const SizedBox(height: 8),
+        Text(text('testMeaning')),
+        if (_falseStarts > 0) ...[
+          const SizedBox(height: 8),
+          Text(text('earlyAdvice')),
+        ],
+        if (_lapses > 0) ...[
+          const SizedBox(height: 8),
+          Text(text('lapseAdvice')),
+        ],
+        if ((_selectedKssLevel ?? 0) >= 7) ...[
+          const SizedBox(height: 8),
+          Text(text('sleepyAdvice')),
+        ],
+        const SizedBox(height: 8),
+        Text(text('generalAdvice')),
+      ],
+    );
   }
 
   Future<void> _sendAverageReactionTime(

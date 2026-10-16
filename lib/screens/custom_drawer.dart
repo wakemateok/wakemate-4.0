@@ -26,6 +26,7 @@ class CustomDrawer extends StatelessWidget {
   final String userId;
   final String userName;
   final String userEmail;
+  final VoidCallback? onDataChanged;
   final VoidCallback? onDailyQuestionnaireTap;
   final bool showDailyQuestionnaireBadge;
 
@@ -34,6 +35,7 @@ class CustomDrawer extends StatelessWidget {
     required this.userId,
     required this.userName,
     required this.userEmail,
+    this.onDataChanged,
     this.onDailyQuestionnaireTap,
     this.showDailyQuestionnaireBadge = false,
   });
@@ -205,7 +207,7 @@ class CustomDrawer extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (context) => SettingsPage(userId: userId),
                           ),
-                        );
+                        ).then((_) => onDataChanged?.call());
                       },
                     ),
                     if (showBriefAlertness)
@@ -222,7 +224,7 @@ class CustomDrawer extends StatelessWidget {
                                   (context) =>
                                       AlertnessTestPage(userId: userId),
                             ),
-                          );
+                          ).then((_) => onDataChanged?.call());
                         },
                       ),
                     if (showPvtbAlertness)
@@ -239,7 +241,7 @@ class CustomDrawer extends StatelessWidget {
                                   (context) =>
                                       AlertnessTestPage.pvtb(userId: userId),
                             ),
-                          );
+                          ).then((_) => onDataChanged?.call());
                         },
                       ),
                     _buildDrawerItem(
@@ -312,7 +314,7 @@ class CustomDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                  'WakeMate v1.1.0',
+                  'WakeMate v1.2.0',
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,

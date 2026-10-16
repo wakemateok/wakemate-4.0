@@ -1,3 +1,4 @@
+import 'package:my_app/widgets/taipei_datetime_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/day_record_replacement.dart';
@@ -80,32 +81,15 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   String _formatToApiTimestamp(String value) => taipeiInputToUtcIso(value);
 
   Future<void> _pickDateTime(TextEditingController controller) async {
-    final initialDateTime =
-        _parseInputDateTime(controller.text) ?? widget.selectedDate;
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDateTime,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-    if (pickedDate == null || !mounted) return;
-
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDateTime),
-    );
-    if (pickedTime == null) return;
-
-    final finalDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
+    DateTime initial;
+    try {
+      initial = parseTaipeiInput(controller.text);
+    } catch (_) {
+      initial = widget.selectedDate;
+    }
+    final selected = await showTaipeiDateTimePicker(context, initial: initial);
+    if (selected == null || !mounted) return;
+    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(selected);
   }
 
   Future<void> _submitData() async {

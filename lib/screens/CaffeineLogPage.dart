@@ -1,6 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:my_app/utils/catalog_labels.dart';
+import 'package:my_app/utils/review_text.dart';
+import 'package:my_app/widgets/taipei_datetime_picker.dart';
 import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
@@ -58,12 +61,18 @@ class CaffeineLogPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
   final http.Client? client;
+  final String? initialCatalogId;
+  final double initialPortion;
+  final DateTime? initialTimestamp;
 
   const CaffeineLogPage({
     super.key,
     required this.userId,
     required this.selectedDate,
     this.client,
+    this.initialCatalogId,
+    this.initialPortion = 1,
+    this.initialTimestamp,
   });
 
   @override
@@ -170,11 +179,22 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   _CaffeineEntryMode _entryMode = _CaffeineEntryMode.catalog;
   String _selectedCatalogBrand = ntuHospitalCaffeineCatalog.first.brand;
   String _selectedCatalogId = ntuHospitalCaffeineCatalog.first.id;
+  double _catalogPortion = 1;
 
   @override
   void initState() {
     super.initState();
-    final now = taipeiNow();
+    final now = widget.initialTimestamp ?? taipeiNow();
+    if (widget.initialCatalogId != null) {
+      for (final item in ntuHospitalCaffeineCatalog) {
+        if (item.id == widget.initialCatalogId) {
+          _selectedCatalogId = item.id;
+          _selectedCatalogBrand = item.brand;
+          if ([1.0, .75, .5, .25].contains(widget.initialPortion))
+            _catalogPortion = widget.initialPortion;
+        }
+      }
+    }
     final initialTime = DateTime(
       widget.selectedDate.year,
       widget.selectedDate.month,
@@ -221,6 +241,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
           .toList();
 
   bool get _isZh => AppLocalizations.of(context)!.localeName.startsWith('zh');
+  String get _languageCode => AppLocalizations.of(context)!.localeName;
   bool get _isId => AppLocalizations.of(context)!.localeName.startsWith('id');
 
   String get _caffeineOutOfRangeMessage {
@@ -233,79 +254,10 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     return 'Caffeine amount must be 1-$_maxSingleCaffeineMg mg per entry. If it is higher, split it into multiple records or check the input.';
   }
 
-  String _localizedCatalogProductName(CaffeineCatalogItem item) {
-    if (_isZh) return item.productName;
-
-    final isId = _isId;
-    if (item.id.contains('espresso_30ml')) {
-      return 'Espresso';
-    }
-    if (item.id.contains('strong_americano')) {
-      if (item.brand == "Let’s Café") {
-        return isId ? 'Americano Ekstra Pekat' : 'Extra Strong Americano';
-      }
-      return isId ? 'Americano Pekat' : 'Bold Americano';
-    }
-    if (item.id.contains('strong_latte')) {
-      return isId ? 'Latte Pekat' : 'Bold Latte';
-    }
-    if (item.id.contains('americano')) {
-      if (item.brand == "Let’s Café") {
-        return isId ? 'Americano Klasik' : 'Classic Americano';
-      }
-      return 'Americano';
-    }
-    if (item.id.contains('latte')) {
-      if (item.brand == "Let’s Café") {
-        return isId ? 'Latte Klasik' : 'Classic Latte';
-      }
-      if (item.brand == 'Starbucks') {
-        return isId ? 'Caffe Latte' : 'Caffe Latte';
-      }
-      return 'Latte';
-    }
-
-    return item.productName;
-  }
-
-  String _localizedCatalogSizeLabel(CaffeineCatalogItem item) {
-    if (_isZh) return item.sizeLabel;
-
-    final isId = _isId;
-    final hot = item.id.contains('_hot_');
-    final iced = item.id.contains('_iced_');
-    final temperature =
-        hot
-            ? (isId ? 'Panas' : 'Hot')
-            : iced
-            ? (isId ? 'Dingin' : 'Iced')
-            : '';
-
-    String size;
-    if (item.id.endsWith('_30ml')) {
-      size = '30 ml';
-    } else if (item.id.endsWith('_short')) {
-      size = 'Short';
-    } else if (item.id.endsWith('_tall')) {
-      size = 'Tall';
-    } else if (item.id.endsWith('_grande')) {
-      size = 'Grande';
-    } else if (item.id.endsWith('_venti')) {
-      size = 'Venti';
-    } else if (item.id.endsWith('_s')) {
-      size = isId ? 'Kecil' : 'Small';
-    } else if (item.id.endsWith('_m')) {
-      size = isId ? 'Sedang' : 'Medium';
-    } else if (item.id.endsWith('_l')) {
-      size = isId ? 'Besar' : 'Large';
-    } else if (item.id.endsWith('_xl')) {
-      size = isId ? 'Ekstra besar' : 'Extra large';
-    } else {
-      size = item.sizeLabel;
-    }
-
-    return temperature.isEmpty ? size : '$temperature $size';
-  }
+  String _localizedCatalogProductName(CaffeineCatalogItem item) =>
+      catalogProductName(item, _languageCode);
+  String _localizedCatalogSizeLabel(CaffeineCatalogItem item) =>
+      catalogSizeLabel(item, _languageCode);
 
   String _localizedCatalogDisplayName(CaffeineCatalogItem item) {
     return '${_localizedCatalogProductName(item)} ${_localizedCatalogSizeLabel(item)}';
@@ -434,7 +386,7 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
 
   int get _estimatedCaffeineAmount {
     if (_entryMode == _CaffeineEntryMode.catalog) {
-      return _selectedCatalogItem.caffeineMg;
+      return (_selectedCatalogItem.caffeineMg * _catalogPortion).round();
     }
 
     final drink = _selectedDrink;
@@ -472,7 +424,15 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
     if (_entryMode == _CaffeineEntryMode.catalog) {
       final item = _selectedCatalogItem;
       final estimateTag = item.isEstimate ? ' (${l10n.manualEstimate})' : '';
-      return '${item.brand} ${_localizedCatalogDisplayName(item)}$estimateTag';
+      final portion =
+          _catalogPortion == 1
+              ? ''
+              : _catalogPortion == .5
+              ? ' (1/2)'
+              : _catalogPortion == .25
+              ? ' (1/4)'
+              : ' (3/4)';
+      return '${item.brand} ${_localizedCatalogDisplayName(item)}$portion$estimateTag';
     }
 
     final drink = _selectedDrink;
@@ -522,36 +482,15 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
   }
 
   Future<void> _pickDateTime(TextEditingController controller) async {
-    DateTime initialDateTime;
+    DateTime initial;
     try {
-      initialDateTime = parseTaipeiInput(controller.text);
+      initial = parseTaipeiInput(controller.text);
     } catch (_) {
-      initialDateTime = taipeiNow();
+      initial = widget.selectedDate;
     }
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDateTime,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
-    if (pickedDate == null || !mounted) return;
-
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDateTime),
-    );
-    if (pickedTime == null) return;
-
-    final finalDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(finalDateTime);
+    final selected = await showTaipeiDateTimePicker(context, initial: initial);
+    if (selected == null || !mounted) return;
+    controller.text = DateFormat('yyyy-MM-dd HH:mm').format(selected);
   }
 
   String formatToISO8601(String time) => taipeiInputToUtcIso(time);
@@ -742,6 +681,31 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
             if (id == null) return;
             setState(() {
               _selectedCatalogId = id;
+              _syncEstimatedAmountToController();
+            });
+          },
+        ),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<double>(
+          key: const ValueKey('catalog-portion'),
+          initialValue: _catalogPortion,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: reviewText('portion', _languageCode),
+          ),
+          items:
+              [1.0, .75, .5, .25]
+                  .map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(portionText(value, _languageCode)),
+                    ),
+                  )
+                  .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _catalogPortion = value;
               _syncEstimatedAmountToController();
             });
           },

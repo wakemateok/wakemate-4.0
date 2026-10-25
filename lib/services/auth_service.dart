@@ -118,11 +118,16 @@ class AuthService extends ChangeNotifier {
     }
     await _store.write(jsonEncode(parsed));
     _session = parsed;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('userId', userId!);
-    await prefs.setString('userName', userName);
-    await prefs.setString('userEmail', email);
-    await prefs.setBool('isLoggedIn', true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userId', userId!);
+      await prefs.setString('userName', userName);
+      await prefs.setString('userEmail', email);
+      await prefs.setBool('isLoggedIn', true);
+    } catch (error) {
+      // Secure storage is authoritative; optional display caches are not authentication.
+      debugPrint('Optional account cache could not be updated: $error');
+    }
     if (newIdentity) generation++;
     notifyListeners();
   }

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:my_app/services/recommendation_invalidation.dart';
+import 'package:my_app/api/day_record_replacement.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
@@ -299,7 +300,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         await invalidateFutureRecommendations(userId: widget.userId);
@@ -308,10 +309,26 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
         return true;
       }
 
-      _showSnackBar('${l10n.updateFailed}: ${response.statusCode}');
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      final detail = decoded is Map ? decoded['detail'] : null;
+      final code =
+          detail is Map ? detail['type']?.toString() : detail?.toString();
+      if (code == 'periods_overlap' || code == 'sleep_wake_overlap') {
+        _showSnackBar(
+          recordSaveErrorText(
+            RecordSaveException(
+              code!,
+              detail is Map ? Map<String, dynamic>.from(detail) : null,
+            ),
+            l10n,
+          ),
+        );
+      } else {
+        _showSnackBar('${l10n.updateFailed}: ${response.statusCode}');
+      }
       return false;
     } catch (e) {
-      _showSnackBar('${l10n.updateFailed}: $e');
+      _showSnackBar('${l10n.updateFailed}: ${l10n.networkError}');
       return false;
     }
   }
@@ -345,7 +362,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
     try {
       final response = await _client
           .delete(Uri.parse('$baseUrl/$endpoint/$id'))
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         await invalidateFutureRecommendations(userId: widget.userId);
@@ -355,7 +372,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
         _showSnackBar('${l10n.deleteFailed}: ${response.statusCode}');
       }
     } catch (e) {
-      _showSnackBar('${l10n.deleteFailed}: $e');
+      _showSnackBar('${l10n.deleteFailed}: ${l10n.networkError}');
     }
   }
 

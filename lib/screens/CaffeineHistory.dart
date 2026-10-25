@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/api/home_data.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/utils/recommendation_deduplication.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,11 +13,15 @@ import 'CaffeineRecommendationPage.dart';
 class CaffeineHistoryPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final List<Map<String, dynamic>>? confirmedEntries;
+  final HomeRepository? repository;
 
   const CaffeineHistoryPage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.confirmedEntries,
+    this.repository,
   });
 
   @override
@@ -32,42 +37,79 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
 
   List<dynamic> _allData = [];
   bool _loading = true;
+  bool _loadFailed = false, _recalculating = false;
+  late final HomeRepository _repository;
+  List<Map<String, dynamic>>? _confirmedEntries;
+  bool _refreshServer = false;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? HomeRepository();
+    _confirmedEntries = widget.confirmedEntries;
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    if (widget.repository == null) _repository.close();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
     if (mounted) setState(() => _loading = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
-
+    List<Map<String, dynamic>> cached = [];
+    var failed = false;
+    var serverFailed = false;
+    if (_refreshServer) {
+      try {
+        final snapshot = await _repository.load(widget.userId);
+        if (snapshot.calculationFailed)
+          throw StateError('recommendation_refresh_failed');
+        _confirmedEntries = snapshot.recommendations;
+      } catch (_) {
+        _confirmedEntries = [];
+        serverFailed = true;
+      }
+    }
     try {
-      final List<dynamic> data =
-          dataStr.isNotEmpty ? List<dynamic>.from(jsonDecode(dataStr)) : [];
-
-      if (mounted) {
-        setState(() {
-          _allData = data;
-          _loading = false;
-        });
+      final prefs = await SharedPreferences.getInstance();
+      final decoded = jsonDecode(
+        prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]',
+      );
+      if (decoded is! List) {
+        throw const FormatException('Invalid recommendation cache');
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _allData = [];
-          _loading = false;
-        });
-      }
+      cached = recommendationMapsFrom(decoded);
+    } catch (error) {
+      failed = true;
+      debugPrint('Recommendation history cache could not be loaded: $error');
+    }
+    final now = taipeiNow();
+    final entries = dedupeRecommendations(
+      filterActiveRecommendations([
+        ...cached.where(
+          (row) => recommendationTiming(row)?.isBefore(now) == true,
+        ),
+        ...?_confirmedEntries,
+      ]).where(
+        (row) => row['user_id'] == null || row['user_id'] == widget.userId,
+      ),
+    );
+    if (mounted) {
+      setState(() {
+        _allData = entries;
+        _loadFailed = serverFailed || (failed && _confirmedEntries == null);
+        _loading = false;
+      });
     }
   }
 
   Future<void> _clearDataForSelectedDate() async {
     final prefs = await SharedPreferences.getInstance();
-    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
+    final dataStr =
+        prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
     List<dynamic> data = dataStr.isNotEmpty ? jsonDecode(dataStr) : [];
 
     final selectedDateStr = DateFormat(
@@ -85,7 +127,10 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
               selectedDateStr;
         }).toList();
 
-    await prefs.setString('caffeine_recommendations_${widget.userId}', jsonEncode(data));
+    await prefs.setString(
+      'caffeine_recommendations_${widget.userId}',
+      jsonEncode(data),
+    );
 
     if (mounted) {
       setState(() => _allData = data);
@@ -127,8 +172,18 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
   }
 
   Future<void> _recalculateSelectedDate() async {
+    if (_recalculating) return;
+    setState(() {
+      _recalculating = true;
+      _confirmedEntries = [];
+      _refreshServer = true;
+    });
     final navigator = Navigator.of(context);
-    await _clearDataForSelectedDate();
+    try {
+      await _clearDataForSelectedDate();
+    } catch (error) {
+      debugPrint('Recommendation cache could not be cleared: $error');
+    }
     if (!mounted) return;
     await navigator.push(
       MaterialPageRoute(
@@ -137,15 +192,19 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
               userId: widget.userId,
               selectedDate: widget.selectedDate,
               forceRecalculate: true,
+              repository: _repository,
             ),
       ),
     );
-    if (mounted) await _loadData();
+    if (mounted) {
+      setState(() => _recalculating = false);
+      await _loadData();
+    }
   }
 
   Widget _buildRecalculateButton(AppLocalizations l10n) {
     return ElevatedButton.icon(
-      onPressed: _recalculateSelectedDate,
+      onPressed: _recalculating ? null : _recalculateSelectedDate,
       icon: const Icon(Icons.auto_graph),
       label: Text(l10n.calculateAgain),
       style: ElevatedButton.styleFrom(
@@ -180,108 +239,134 @@ class _CaffeineHistoryPageState extends State<CaffeineHistoryPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : hasHistory
-              ? ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: historyForSelectedDate.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == historyForSelectedDate.length) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 4, bottom: 20),
-                      child: Center(child: _buildRecalculateButton(l10n)),
-                    );
-                  }
-
-                  final item = historyForSelectedDate[index];
-                  final recommendedTimingStr =
-                      item['recommended_caffeine_intake_timing']?.toString() ??
-                      '';
-                  final recommendedAmount =
-                      item['recommended_caffeine_amount'] ?? 'N/A';
-
-                  final localDateTime = _parseAndLocalize(recommendedTimingStr);
-                  final formattedTime =
-                      localDateTime != null
-                          ? DateFormat('HH:mm').format(localDateTime)
-                          : 'N/A';
-
-                  return Card(
-                    color: _cardColor,
-                    elevation: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        child:
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _loadFailed
+                ? Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(l10n.networkError, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          key: const ValueKey('recommendation-history-retry'),
+                          onPressed: _loadData,
+                          icon: const Icon(Icons.refresh),
+                          label: Text(l10n.retry),
+                        ),
+                      ],
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${l10n.recommendationItem} #${index + 1}',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: _primaryColor,
+                  ),
+                )
+                : hasHistory
+                ? ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: historyForSelectedDate.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == historyForSelectedDate.length) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 20),
+                        child: Center(child: _buildRecalculateButton(l10n)),
+                      );
+                    }
+
+                    final item = historyForSelectedDate[index];
+                    final recommendedTimingStr =
+                        item['recommended_caffeine_intake_timing']
+                            ?.toString() ??
+                        '';
+                    final recommendedAmount =
+                        item['recommended_caffeine_amount'] ?? 'N/A';
+
+                    final localDateTime = _parseAndLocalize(
+                      recommendedTimingStr,
+                    );
+                    final formattedTime =
+                        localDateTime != null
+                            ? DateFormat('HH:mm').format(localDateTime)
+                            : 'N/A';
+
+                    return Card(
+                      color: _cardColor,
+                      elevation: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${l10n.recommendationItem} #${index + 1}',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: _primaryColor,
+                              ),
                             ),
+                            const SizedBox(height: 12),
+                            _buildDataRow(
+                              icon: Icons.access_time_filled,
+                              title: l10n.recommendedTiming,
+                              content: formattedTime,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDataRow(
+                              icon: Icons.local_cafe,
+                              title: l10n.recommendedAmount,
+                              content: '$recommendedAmount mg',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                )
+                : Center(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.coffee_outlined,
+                            size: 80,
+                            color: _accentColor.withValues(alpha: 0.5),
                           ),
-                          const SizedBox(height: 12),
-                          _buildDataRow(
-                            icon: Icons.access_time_filled,
-                            title: l10n.recommendedTiming,
-                            content: formattedTime,
+                          const SizedBox(height: 24),
+                          Text(
+                            l10n.noRecommendationsForDate,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: _textColor.withValues(alpha: 0.7),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          const SizedBox(height: 12),
-                          _buildDataRow(
-                            icon: Icons.local_cafe,
-                            title: l10n.recommendedAmount,
-                            content: '$recommendedAmount mg',
+                          const SizedBox(height: 8),
+                          Text(
+                            l10n.noRecommendationBody,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _textColor.withValues(alpha: 0.5),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
+                          const SizedBox(height: 30),
+                          _buildRecalculateButton(l10n),
                         ],
                       ),
                     ),
-                  );
-                },
-              )
-              : Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.coffee_outlined,
-                        size: 80,
-                        color: _accentColor.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        l10n.noRecommendationsForDate,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: _textColor.withValues(alpha: 0.7),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.noRecommendationBody,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: _textColor.withValues(alpha: 0.5),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 30),
-                      _buildRecalculateButton(l10n),
-                    ],
                   ),
                 ),
-              ),
+      ),
     );
   }
 }

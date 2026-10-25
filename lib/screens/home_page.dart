@@ -111,19 +111,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _loadGuide() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted)
-      setState(
-        () =>
-            _showGuide =
-                prefs.getBool('home_guide_seen_${widget.userId}') != true,
-      );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted)
+        setState(
+          () =>
+              _showGuide =
+                  prefs.getBool('home_guide_seen_${widget.userId}') != true,
+        );
+    } catch (error) {
+      debugPrint('Optional welcome-guide cache unavailable: $error');
+    }
   }
 
   Future<void> _hideGuide() async {
     setState(() => _showGuide = false);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('home_guide_seen_${widget.userId}', true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('home_guide_seen_${widget.userId}', true);
+    } catch (error) {
+      debugPrint('Optional welcome-guide cache could not be saved: $error');
+    }
   }
 
   Future<void> _refreshData({
@@ -190,30 +198,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }) async {
     if (!mounted || AuthService.instance.userId != widget.userId) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = 'caffeine_recommendations_${widget.userId}';
-      List<Map<String, dynamic>> previous;
       try {
-        previous = recommendationMapsFrom(
-          jsonDecode(prefs.getString(key) ?? '[]'),
+        final prefs = await SharedPreferences.getInstance();
+        final key = 'caffeine_recommendations_${widget.userId}';
+        List<Map<String, dynamic>> previous;
+        try {
+          previous = recommendationMapsFrom(
+            jsonDecode(prefs.getString(key) ?? '[]'),
+          );
+        } catch (_) {
+          previous = [];
+        }
+        final now = taipeiNow();
+        final history = previous.where(
+          (row) => recommendationTiming(row)?.isBefore(now) == true,
         );
-      } catch (_) {
-        previous = [];
+        if (!mounted ||
+            epoch != _requestEpoch ||
+            AuthService.instance.userId != widget.userId)
+          return;
+        await prefs.setString(
+          key,
+          jsonEncode(
+            dedupeRecommendations([...history, ...snapshot.recommendations]),
+          ),
+        );
+      } catch (error) {
+        debugPrint(
+          'Confirmed home recommendation cache could not be saved: $error',
+        );
       }
-      final now = taipeiNow();
-      final history = previous.where(
-        (row) => recommendationTiming(row)?.isBefore(now) == true,
-      );
-      if (!mounted ||
-          epoch != _requestEpoch ||
-          AuthService.instance.userId != widget.userId)
-        return;
-      await prefs.setString(
-        key,
-        jsonEncode(
-          dedupeRecommendations([...history, ...snapshot.recommendations]),
-        ),
-      );
       if (!mounted ||
           epoch != _requestEpoch ||
           AuthService.instance.userId != widget.userId)
@@ -264,13 +278,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _maybeShowDailyQuestionnaireReminder() async {
     if (!_questionnaireLinks.hasDailyLink) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = taipeiTodayKey();
+      if (prefs.getString(_dailyQuestionnaireReminderKey) == today) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final today = taipeiTodayKey();
-    if (prefs.getString(_dailyQuestionnaireReminderKey) == today) return;
-
-    if (mounted) {
-      _showDailyQuestionnaireDialog(markAsSeenOnClose: true);
+      if (mounted) {
+        _showDailyQuestionnaireDialog(markAsSeenOnClose: true);
+      }
+    } catch (error) {
+      debugPrint('Optional questionnaire reminder cache unavailable: $error');
     }
   }
 
@@ -280,16 +297,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final today = taipeiTodayKey();
-    final shouldShow = prefs.getString(_dailyQuestionnaireReminderKey) != today;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = taipeiTodayKey();
+      final shouldShow =
+          prefs.getString(_dailyQuestionnaireReminderKey) != today;
 
-    if (mounted) setState(() => _showDailyQuestionnaireBadge = shouldShow);
+      if (mounted) setState(() => _showDailyQuestionnaireBadge = shouldShow);
+    } catch (error) {
+      debugPrint('Optional questionnaire badge cache unavailable: $error');
+    }
   }
 
   Future<void> _markDailyQuestionnaireReminderSeen() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_dailyQuestionnaireReminderKey, taipeiTodayKey());
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_dailyQuestionnaireReminderKey, taipeiTodayKey());
+    } catch (error) {
+      debugPrint(
+        'Optional questionnaire badge cache could not be saved: $error',
+      );
+    }
     if (mounted) setState(() => _showDailyQuestionnaireBadge = false);
   }
 
@@ -676,6 +704,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       CaffeineHistoryPage(
                         userId: widget.userId,
                         selectedDate: _selectedDate,
+                        confirmedEntries:
+                            _error == null && !_loading
+                                ? _snapshot?.recommendations
+                                : const [],
                       ),
                     ),
               ),

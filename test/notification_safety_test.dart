@@ -7,6 +7,14 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:my_app/services/notification_service.dart';
 import 'package:my_app/services/recommendation_invalidation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+class FailedReminderCache extends InMemorySharedPreferencesStore {
+  FailedReminderCache() : super.empty();
+  @override
+  Future<Map<String, Object>> getAll() async =>
+      throw PlatformException(code: 'cache_unavailable');
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -257,6 +265,20 @@ void main() {
     });
     expect((await service.loadNotificationHistory()).length, 1);
   });
+
+  test(
+    'storage read failure cannot leave cancelled OS reminders active',
+    () async {
+      await replace([
+        recommendation(DateTime.now().add(const Duration(hours: 2))),
+      ]);
+      expect(pending, isNotEmpty);
+      SharedPreferences.setMockInitialValues({});
+      SharedPreferencesStorePlatform.instance = FailedReminderCache();
+      await service.cancelCaffeineReminders();
+      expect(pending, isEmpty);
+    },
+  );
 
   test(
     'repeated calculation-complete logs keep only the latest status',

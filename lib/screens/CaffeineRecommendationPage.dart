@@ -155,7 +155,11 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         return;
       }
       final entries = snapshot.recommendationsOn(widget.selectedDate);
-      await _saveRecommendationData(snapshot.recommendations);
+      try {
+        await _saveRecommendationData(snapshot.recommendations);
+      } catch (error) {
+        debugPrint('Confirmed recommendation cache could not be saved: $error');
+      }
       await _configureNotifications(
         entries: snapshot.recommendations,
         languageCode: languageCode,
@@ -173,6 +177,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
               (_) => CaffeineHistoryPage(
                 userId: widget.userId,
                 selectedDate: widget.selectedDate,
+                confirmedEntries: snapshot.recommendations,
               ),
         ),
       );

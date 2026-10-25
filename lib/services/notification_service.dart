@@ -316,9 +316,17 @@ class NotificationService {
   }
 
   Future<void> _cancelPreviousReminders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedIds = prefs.getStringList(_scheduledIdsKey) ?? const [];
     final pending = await _plugin.pendingNotificationRequests();
+    SharedPreferences? prefs;
+    List<String> savedIds = const [];
+    try {
+      prefs = await SharedPreferences.getInstance();
+      savedIds = prefs.getStringList(_scheduledIdsKey) ?? const [];
+    } catch (error) {
+      debugPrint(
+        'Reminder cache unavailable; cancelling OS schedules directly: $error',
+      );
+    }
     final ids = {
       ...savedIds.map(int.tryParse).whereType<int>(),
       ...pending
@@ -332,25 +340,32 @@ class NotificationService {
       await _plugin.cancel(id: id);
     }
 
-    await prefs.remove(_scheduledIdsKey);
-    final history = await loadNotificationHistory();
-    final now = DateTime.now().toUtc();
-    await prefs.setString(
-      _historyKey,
-      jsonEncode(
-        history.map((entry) {
-          final json = entry.toJson();
-          if (entry.type == 'caffeine_reminder' &&
-              entry.status == 'scheduled') {
-            json['status'] =
-                entry.scheduledAt?.isAfter(now) == true
-                    ? 'cancelled'
-                    : 'due_unconfirmed';
-          }
-          return json;
-        }).toList(),
-      ),
-    );
+    if (prefs == null) return;
+    try {
+      await prefs.remove(_scheduledIdsKey);
+      final history = await loadNotificationHistory();
+      final now = DateTime.now().toUtc();
+      await prefs.setString(
+        _historyKey,
+        jsonEncode(
+          history.map((entry) {
+            final json = entry.toJson();
+            if (entry.type == 'caffeine_reminder' &&
+                entry.status == 'scheduled') {
+              json['status'] =
+                  entry.scheduledAt?.isAfter(now) == true
+                      ? 'cancelled'
+                      : 'due_unconfirmed';
+            }
+            return json;
+          }).toList(),
+        ),
+      );
+    } catch (error) {
+      debugPrint(
+        'OS schedules cancelled; optional history cache update failed: $error',
+      );
+    }
   }
 
   Future<List<WakeMateNotificationLogEntry>> loadNotificationHistory() async {

@@ -314,7 +314,7 @@ class CustomDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                  'WakeMate v1.2.2',
+                    'WakeMate v1.2.3',
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,

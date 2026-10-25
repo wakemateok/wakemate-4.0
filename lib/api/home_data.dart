@@ -85,9 +85,11 @@ class HomeSnapshot {
 }
 
 class HomeRepository {
-  HomeRepository({http.Client? client})
-    : _client = client ?? http.authenticatedClient();
+  HomeRepository({http.Client? client, DateTime Function()? now})
+    : _client = client ?? http.authenticatedClient(),
+      _now = now ?? DateTime.now;
   final http.Client _client;
+  final DateTime Function() _now;
 
   Future<List<Map<String, dynamic>>> _read(
     String endpoint,
@@ -118,6 +120,7 @@ class HomeRepository {
     RecommendationFailure? failure = findSleepWakeConflict(
       records[0],
       records[1],
+      now: _now(),
     );
     var calculationFailed = failure != null;
     if (recalculate &&

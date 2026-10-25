@@ -39,6 +39,7 @@ final wakes = <Map<String, dynamic>>[
     'is_active': true,
   },
 ];
+final referenceTime = DateTime.utc(2026, 10, 20);
 
 void main() {
   setUpAll(() async {
@@ -65,10 +66,11 @@ void main() {
   );
 
   test(
-    'unrelated historical overlap cannot be bypassed by leaving calculation and reopening home',
+    'unfinished overlap cannot be bypassed by leaving calculation and reopening home',
     () async {
       final calls = <String>[];
       final repo = HomeRepository(
+        now: () => referenceTime,
         client: MockClient((r) async {
           calls.add('${r.method} ${r.url.path}');
           final endpoint = r.url.path.split('/')[1];
@@ -107,23 +109,35 @@ void main() {
     final adjacent = [
       {...wakes.first, 'target_start_time': '2026-10-20T08:30:00Z'},
     ];
-    expect(findSleepWakeConflict(sleeps, adjacent), isNull);
+    expect(findSleepWakeConflict(sleeps, adjacent, now: referenceTime), isNull);
     expect(
-      findSleepWakeConflict([
-        {...sleeps.first, 'is_active': false},
-      ], wakes),
+      findSleepWakeConflict(
+        [
+          {...sleeps.first, 'is_active': false},
+        ],
+        wakes,
+        now: referenceTime,
+      ),
       isNull,
     );
     expect(
-      findSleepWakeConflict([
-        {...sleeps.first, 'deleted_at': '2026-10-21T00:00:00Z'},
-      ], wakes),
+      findSleepWakeConflict(
+        [
+          {...sleeps.first, 'deleted_at': '2026-10-21T00:00:00Z'},
+        ],
+        wakes,
+        now: referenceTime,
+      ),
       isNull,
     );
     expect(
-      findSleepWakeConflict([
-        {...sleeps.first, 'invalidated_at': '2026-10-21T00:00:00Z'},
-      ], wakes),
+      findSleepWakeConflict(
+        [
+          {...sleeps.first, 'invalidated_at': '2026-10-21T00:00:00Z'},
+        ],
+        wakes,
+        now: referenceTime,
+      ),
       isNull,
     );
   });
@@ -131,7 +145,7 @@ void main() {
   test(
     'structured 400 is localized with precise Taipei conflict times instead of raw JSON',
     () {
-      final error = findSleepWakeConflict(sleeps, wakes)!;
+      final error = findSleepWakeConflict(sleeps, wakes, now: referenceTime)!;
       final parsed = RecommendationFailure.fromBody(
         jsonEncode({
           'detail': {'type': error.code, ...error.detail!},
@@ -153,6 +167,7 @@ void main() {
     () async {
       final calls = <String>[];
       final repo = HomeRepository(
+        now: () => referenceTime,
         client: MockClient((r) async {
           calls.add(r.url.path);
           if (r.url.path == '/users_sleep/')
@@ -190,7 +205,8 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final failure = findSleepWakeConflict(sleeps, wakes)!;
+        final failure =
+            findSleepWakeConflict(sleeps, wakes, now: referenceTime)!;
         final snapshot = HomeSnapshot(
           sleeps: sleeps,
           wakes: wakes,
@@ -250,7 +266,7 @@ void main() {
         qa.app(const Scaffold(body: Text('Test')), const Locale('zh', 'TW')),
       );
       final l10n = AppLocalizations.of(tester.element(find.text('Test')))!;
-      final error = findSleepWakeConflict(sleeps, wakes)!;
+      final error = findSleepWakeConflict(sleeps, wakes, now: referenceTime)!;
       final text = recordSaveErrorText(
         RecordSaveException(error.code, error.detail),
         l10n,

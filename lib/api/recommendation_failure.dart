@@ -62,9 +62,9 @@ class RecommendationFailure {
         if (wake.isNotEmpty)
           '${text('清醒（台北時間）', 'Wake period (Taipei time)', 'Terjaga (waktu Taipei)')}: $wake',
         text(
-          '請到「輸入歷史」核對並修正；衝突也可能來自之前日期的紀錄。',
-          'Check and correct these entries in Input history. A conflict may come from an earlier date.',
-          'Periksa dan perbaiki catatan di Riwayat input. Konflik dapat berasal dari tanggal sebelumnya.',
+          '請到「輸入歷史」核對上列尚未結束的清醒時段與睡眠紀錄。',
+          'Check the unfinished wake periods and sleep entries shown above in Input history.',
+          'Periksa periode terjaga yang belum berakhir dan catatan tidur di atas pada Riwayat input.',
         ),
       ].join('\n');
     }
@@ -84,8 +84,10 @@ class RecommendationFailure {
 
 RecommendationFailure? findSleepWakeConflict(
   List<Map<String, dynamic>> sleeps,
-  List<Map<String, dynamic>> wakes,
-) {
+  List<Map<String, dynamic>> wakes, {
+  DateTime? now,
+}) {
+  final cutoff = (now ?? DateTime.now()).toUtc();
   bool active(Map row) =>
       row['is_active'] != false &&
       row['deleted_at'] == null &&
@@ -95,6 +97,10 @@ RecommendationFailure? findSleepWakeConflict(
     final end = apiTimestampToTaipei(sleep['sleep_end_time']?.toString());
     if (start == null || end == null) continue;
     for (final wake in wakes.where(active)) {
+      final endInstant = DateTime.tryParse(
+        wake['target_end_time']?.toString() ?? '',
+      );
+      if (endInstant == null || !endInstant.toUtc().isAfter(cutoff)) continue;
       final ws = apiTimestampToTaipei(wake['target_start_time']?.toString());
       final we = apiTimestampToTaipei(wake['target_end_time']?.toString());
       if (ws == null || we == null || !ws.isBefore(end) || !we.isAfter(start))

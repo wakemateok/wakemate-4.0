@@ -8,7 +8,6 @@ import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_app/services/recommendation_invalidation.dart';
 
 import '../data/ntu_hospital_caffeine_catalog.dart';
@@ -495,20 +494,6 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
 
   String formatToISO8601(String time) => taipeiInputToUtcIso(time);
 
-  Future<void> _saveToLocal(
-    double caffeineAmount,
-    String takingTimeString,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    final takingDateTime = parseTaipeiInput(takingTimeString);
-    final dateKey = DateFormat('yyyy-MM-dd').format(takingDateTime);
-    if (!mounted) return;
-    final prefsKey = 'caffeine_${widget.userId}_$dateKey';
-
-    final currentTotal = prefs.getDouble(prefsKey) ?? 0;
-    await prefs.setDouble(prefsKey, currentTotal + caffeineAmount);
-  }
-
   Future<void> _submitData() async {
     if (_isSaving) return;
     final l10n = AppLocalizations.of(context)!;
@@ -556,7 +541,6 @@ class _CaffeineLogPageState extends State<CaffeineLogPage> {
 
       if (!mounted) return;
       if (response.statusCode == 200) {
-        await _saveToLocal(caffeineAmount.toDouble(), takingTime);
         await invalidateFutureRecommendations(userId: widget.userId);
         _showSnackBar(l10n.caffeineSaveSuccess, color: const Color(0xFF8BB9A1));
         if (mounted) {

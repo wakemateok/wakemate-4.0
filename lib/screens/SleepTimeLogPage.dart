@@ -4,16 +4,18 @@ import 'package:intl/intl.dart';
 import 'package:my_app/api/day_record_replacement.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_app/api/authenticated_http.dart' as http;
 
 class ActualSleepTimePage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final http.Client? client;
 
   const ActualSleepTimePage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.client,
   });
 
   @override
@@ -119,6 +121,7 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
     setState(() => _isSaving = true);
     try {
       await replaceDayRecords(
+        client: widget.client,
         baseUrl: baseUrl,
         endpoint: 'users_sleep',
         userId: widget.userId,
@@ -145,11 +148,6 @@ class _ActualSleepTimePageState extends State<ActualSleepTimePage> {
   Future<void> _handleSuccessfulSave(DateTime dtStart, DateTime dtEnd) async {
     final l10n = AppLocalizations.of(context)!;
     final duration = dtEnd.difference(dtStart);
-    final totalHours = duration.inMinutes / 60.0;
-    final prefs = await SharedPreferences.getInstance();
-    final dateKey = DateFormat('yyyy-MM-dd').format(dtEnd);
-    if (!mounted) return;
-    await prefs.setDouble('sleep_${widget.userId}_$dateKey', totalHours);
 
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;

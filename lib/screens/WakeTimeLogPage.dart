@@ -7,6 +7,7 @@ import 'package:my_app/api/day_record_replacement.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:my_app/api/authenticated_http.dart' as http;
 
 class TimeSlot {
   final Key key = UniqueKey();
@@ -38,11 +39,13 @@ class TimeSlot {
 class TargetWakeTimePage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final http.Client? client;
 
   const TargetWakeTimePage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.client,
   });
 
   @override
@@ -79,28 +82,23 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
   }
 
   Future<void> _loadSavedPeriods() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_targetWakePeriodsKey);
-
-    if (jsonString != null && jsonString.isNotEmpty) {
-      try {
-        final List<dynamic> jsonList = json.decode(jsonString);
-        if (!mounted) return;
-        setState(() {
-          _timeSlots.addAll(
-            jsonList.whereType<Map<String, dynamic>>().map(
-              (item) => TimeSlot.fromJson(item),
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_targetWakePeriodsKey);
+      if (raw != null && raw.isNotEmpty) {
+        final data = jsonDecode(raw);
+        if (data is List && mounted) {
+          setState(
+            () => _timeSlots.addAll(
+              data.whereType<Map<String, dynamic>>().map(TimeSlot.fromJson),
             ),
           );
-        });
-      } catch (_) {
-        // Fall through and create a default slot.
+        }
       }
+    } catch (error) {
+      debugPrint('Wake draft cache could not be loaded: $error');
     }
-
-    if (mounted && _timeSlots.isEmpty) {
-      _addTimeSlot();
-    }
+    if (mounted && _timeSlots.isEmpty) _addTimeSlot();
   }
 
   void _addTimeSlot() {
@@ -201,6 +199,7 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
     setState(() => _isSaving = true);
     try {
       await replaceDayRecords(
+        client: widget.client,
         baseUrl: baseUrl,
         endpoint: 'users_wake',
         userId: widget.userId,
@@ -215,11 +214,16 @@ class _TargetWakeTimePageState extends State<TargetWakeTimePage> {
                 )
                 .toList(),
       );
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _targetWakePeriodsKey,
-        jsonEncode(_timeSlots.map((slot) => slot.toJson()).toList()),
-      );
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          _targetWakePeriodsKey,
+          jsonEncode(_timeSlots.map((slot) => slot.toJson()).toList()),
+        );
+      } catch (error) {
+        // The server save is confirmed; a draft-cache failure must not invite resubmission.
+        debugPrint('Wake draft cache could not be updated: $error');
+      }
 
       _showSnackBar(l10n.wakeSaveSuccess, color: _accentColor);
       if (!mounted) return;

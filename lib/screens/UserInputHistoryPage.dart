@@ -27,11 +27,13 @@ class UserHistoryData {
 class UserInputHistoryPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
+  final http.Client? client;
 
   const UserInputHistoryPage({
     super.key,
     required this.userId,
     required this.selectedDate,
+    this.client,
   });
 
   @override
@@ -49,11 +51,19 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
   static const int _maxRecordDurationHours = 48;
 
   late Future<UserHistoryData> _userDataFuture;
+  late final http.Client _client;
 
   @override
   void initState() {
     super.initState();
+    _client = widget.client ?? http.authenticatedClient();
     _refreshHistory();
+  }
+
+  @override
+  void dispose() {
+    if (widget.client == null) _client.close();
+    super.dispose();
   }
 
   void _refreshHistory() {
@@ -208,18 +218,35 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
 
   Future<List<Map<String, dynamic>>> _fetchData(String endpoint) async {
     final url = '$baseUrl/$endpoint/?user_id=${widget.userId}';
-    final response = await http
+    final response = await _client
         .get(Uri.parse(url))
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 60));
 
-    if (response.statusCode != 200) return [];
+    if (response.statusCode != 200) throw StateError('history_load_failed');
 
     final decoded = json.decode(utf8.decode(response.bodyBytes));
-    if (decoded is! List) return [];
+    if (decoded is! List) {
+      throw const FormatException('Invalid history response');
+    }
 
-    return decoded.whereType<Map>().map((item) {
-      return item.map((key, value) => MapEntry(key.toString(), value));
-    }).toList();
+    final rows =
+        decoded.map((item) {
+          if (item is! Map) {
+            throw const FormatException('Invalid history record');
+          }
+          return item.map((key, value) => MapEntry(key.toString(), value));
+        }).toList();
+    if (rows.any((row) => row['user_id']?.toString() != widget.userId)) {
+      throw StateError('unexpected_record_owner');
+    }
+    return rows
+        .where(
+          (row) =>
+              row['is_active'] != false &&
+              row['deleted_at'] == null &&
+              row['invalidated_at'] == null,
+        )
+        .toList();
   }
 
   int _compareByDateDesc(
@@ -237,9 +264,9 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
 
   Future<UserHistoryData> _fetchUserInputHistory() async {
     final rawResults = await Future.wait<List<Map<String, dynamic>>>([
-      _fetchData('users_wake').catchError((_) => <Map<String, dynamic>>[]),
-      _fetchData('users_sleep').catchError((_) => <Map<String, dynamic>>[]),
-      _fetchData('users_intake').catchError((_) => <Map<String, dynamic>>[]),
+      _fetchData('users_wake'),
+      _fetchData('users_sleep'),
+      _fetchData('users_intake'),
     ]);
 
     final wakePeriods =
@@ -266,7 +293,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
   }) async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      final response = await http
+      final response = await _client
           .put(
             Uri.parse('$baseUrl/$endpoint/$id'),
             headers: {'Content-Type': 'application/json'},
@@ -316,7 +343,7 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
     if (confirmed != true) return;
 
     try {
-      final response = await http
+      final response = await _client
           .delete(Uri.parse('$baseUrl/$endpoint/$id'))
           .timeout(const Duration(seconds: 15));
 
@@ -930,10 +957,27 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: _buildEmptySection(
-                Icons.error_outline,
-                '${l10n.networkError}\n${snapshot.error}',
+            return SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildEmptySection(
+                        Icons.error_outline,
+                        l10n.networkError,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        key: const ValueKey('input-history-retry'),
+                        onPressed: _refreshHistoryWithSetState,
+                        icon: const Icon(Icons.refresh),
+                        label: Text(l10n.retry),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             );
           }
@@ -949,7 +993,12 @@ class _UserInputHistoryPageState extends State<UserInputHistoryPage> {
           }
 
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              MediaQuery.of(context).padding.bottom + 20,
+            ),
             children: [
               Text(
                 l10n.allInputHistorySubtitle,

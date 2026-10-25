@@ -1,12 +1,10 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:my_app/api/api_config.dart';
+import 'package:my_app/api/home_data.dart';
+import 'package:my_app/api/recommendation_failure.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/notification_service.dart';
@@ -15,17 +13,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:my_app/services/auth_service.dart';
 
 import 'CaffeineHistory.dart';
+import 'UserInputHistoryPage.dart';
 
 class CaffeineRecommendationPage extends StatefulWidget {
   final String userId;
   final DateTime selectedDate;
   final bool forceRecalculate;
+  final HomeRepository? repository;
 
   const CaffeineRecommendationPage({
     super.key,
     required this.userId,
     required this.selectedDate,
     this.forceRecalculate = false,
+    this.repository,
   });
 
   @override
@@ -42,23 +43,22 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
   String _errorMessage = "";
   bool _isEmptyResult = false;
   bool _requestStarted = false;
+  RecommendationFailure? _failure;
+  late final HomeRepository _repository;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? HomeRepository();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
-    );
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.bounceOut),
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,6 +69,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
 
   @override
   void dispose() {
+    if (widget.repository == null) _repository.close();
     _animationController.dispose();
     super.dispose();
   }
@@ -94,7 +95,8 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
   ) async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted || AuthService.instance.userId != widget.userId) return;
-    final dataStr = prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
+    final dataStr =
+        prefs.getString('caffeine_recommendations_${widget.userId}') ?? '[]';
     List<Map<String, dynamic>> currentHistory;
     try {
       currentHistory = recommendationMapsFrom(json.decode(dataStr));
@@ -129,157 +131,55 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchRecommendations({
-    required String recommendationFailedLabel,
-  }) async {
-    const fetchTimeout = Duration(seconds: 60);
-    final recommendationUrl =
-        '${ApiConfig.baseUrl}/recommendations/?user_id=${widget.userId}';
-    final response = await http
-        .get(Uri.parse(recommendationUrl))
-        .timeout(fetchTimeout);
-
-    if (response.statusCode != 200) {
-      final bodyPreview =
-          response.body.length > 120
-              ? '${response.body.substring(0, 120)}...'
-              : response.body;
-      throw Exception(
-        '$recommendationFailedLabel: ${response.statusCode}\n$bodyPreview',
-      );
-    }
-
-    final data = json.decode(utf8.decode(response.bodyBytes));
-    return dedupeRecommendations(
-      filterActiveRecommendations(recommendationMapsFrom(data)),
-    );
-  }
-
-  List<Map<String, dynamic>> _selectedDateDedupedEntries(
-    List<Map<String, dynamic>> entries,
-  ) {
-    return dedupeRecommendations(
-      filterRecommendationsForDate(entries, widget.selectedDate),
-    );
-  }
-
-  List<Map<String, dynamic>> _displayableEntriesAfterCalculation(
-    List<Map<String, dynamic>> fetchedEntries,
-  ) {
-    final selectedEntries = _selectedDateDedupedEntries(fetchedEntries);
-    if (selectedEntries.isNotEmpty) return selectedEntries;
-    return latestRecommendationBatch(fetchedEntries);
-  }
-
-  DateTime _displayDateForEntries(List<Map<String, dynamic>> entries) {
-    if (entries.isEmpty) return widget.selectedDate;
-    return recommendationTiming(entries.first) ?? widget.selectedDate;
-  }
-
-  Future<bool> _useExistingRecommendationsIfAvailable({
-    required String languageCode,
-    required String recommendationFetchedMessage,
-    required String recommendationFailedLabel,
-  }) async {
-    final entries = _selectedDateDedupedEntries(
-      await _fetchRecommendations(
-        recommendationFailedLabel: recommendationFailedLabel,
-      ),
-    );
-    if (entries.isEmpty) return false;
-
-    await _saveRecommendationData(entries);
-    await _configureNotifications(entries: entries, languageCode: languageCode);
-    _showSnackBar(recommendationFetchedMessage, color: Colors.green);
-
-    if (!mounted) return true;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => CaffeineHistoryPage(
-              userId: widget.userId,
-              selectedDate: widget.selectedDate,
-            ),
-      ),
-    );
-    return true;
-  }
-
   Future<void> sendAllDataAndFetchRecommendation() async {
     if (_requestStarted) return;
     _requestStarted = true;
-
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+      _failure = null;
+    });
     final l10n = AppLocalizations.of(context)!;
     final languageCode = Localizations.localeOf(context).languageCode;
-
     try {
-      if (!widget.forceRecalculate) {
-        final usedExisting = await _useExistingRecommendationsIfAvailable(
-          languageCode: languageCode,
-          recommendationFetchedMessage: l10n.recommendationFetched,
-          recommendationFailedLabel: l10n.recommendationFailed,
-        );
-        if (usedExisting) return;
-      }
-
-      const calculationTimeout = Duration(seconds: 120);
-      final calculationUrl =
-          '${ApiConfig.baseUrl}/calculate/?user_id=${widget.userId}';
-      final calculationResponse = await http
-          .post(Uri.parse(calculationUrl))
-          .timeout(calculationTimeout);
-
-      if (calculationResponse.statusCode != 200) {
-        final bodyPreview =
-            calculationResponse.body.length > 160
-                ? '${calculationResponse.body.substring(0, 160)}...'
-                : calculationResponse.body;
-        _showError(
-          '${l10n.recommendationFailed}: '
-          '${calculationResponse.statusCode}\n$bodyPreview',
-        );
+      await invalidateFutureRecommendations(userId: widget.userId);
+      final snapshot = await _repository.load(widget.userId, recalculate: true);
+      if (!mounted) return;
+      if (snapshot.calculationFailed ||
+          !snapshot.hasSleep ||
+          !snapshot.hasWake) {
+        _failure =
+            snapshot.recommendationFailure ??
+            const RecommendationFailure('missing_inputs');
+        _showError(_failure!.message(languageCode));
         return;
       }
-
-      final fetchedEntries = await _fetchRecommendations(
-        recommendationFailedLabel: l10n.recommendationFailed,
+      final entries = snapshot.recommendationsOn(widget.selectedDate);
+      await _saveRecommendationData(snapshot.recommendations);
+      await _configureNotifications(
+        entries: snapshot.recommendations,
+        languageCode: languageCode,
       );
-      final entries = _displayableEntriesAfterCalculation(fetchedEntries);
-
+      if (!mounted) return;
       if (entries.isEmpty) {
-        await _configureNotifications(
-          entries: const [],
-          languageCode: languageCode,
-        );
         _showEmptyResult();
         return;
       }
-
-      await _saveRecommendationData(entries);
-      await _configureNotifications(
-        entries: entries,
-        languageCode: languageCode,
-      );
       _showSnackBar(l10n.recommendationFetched, color: Colors.green);
-
-      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder:
-              (context) => CaffeineHistoryPage(
+              (_) => CaffeineHistoryPage(
                 userId: widget.userId,
-                selectedDate: _displayDateForEntries(entries),
+                selectedDate: widget.selectedDate,
               ),
         ),
       );
-    } on TimeoutException {
-      _showError('${l10n.recommendationFailed}: timeout');
-    } on SocketException {
-      _showError('${l10n.networkError}: socket');
-    } catch (e) {
-      _showError('${l10n.recommendationFailed}: $e');
+    } catch (_) {
+      if (!mounted) return;
+      _failure = const RecommendationFailure('unavailable');
+      _showError(_failure!.message(languageCode));
     } finally {
       _requestStarted = false;
     }
@@ -340,57 +240,39 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: Text(
-          l10n.recommendationTitle,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(l10n.recommendationTitle),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
-      body: Stack(
-        children: [
-          Container(color: Colors.white),
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                return BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: _animationController.value * 5,
-                    sigmaY: _animationController.value * 5,
-                  ),
-                  child: Container(
-                    color: Colors.black.withValues(
-                      alpha: 0.1 * _animationController.value,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder:
+              (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (constraints.maxHeight - 48).clamp(
+                      0,
+                      double.infinity,
                     ),
-                    child: FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: ScaleTransition(
-                        scale: _scaleAnimation,
-                        child: Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(30),
-                            child:
-                                _isLoading
-                                    ? _buildLoadingWidget(l10n)
-                                    : _buildMessageWidget(l10n),
-                          ),
-                        ),
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: FadeTransition(
+                        opacity: _fadeAnimation,
+                        child:
+                            _isLoading
+                                ? _buildLoadingWidget(l10n)
+                                : _buildMessageWidget(l10n),
                       ),
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-        ],
+                ),
+              ),
+        ),
       ),
     );
   }
@@ -449,26 +331,7 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
         ),
         const SizedBox(height: 40),
         ElevatedButton.icon(
-          onPressed: () {
-            setState(() {
-              _isLoading = true;
-              _isEmptyResult = false;
-              _errorMessage = "";
-            });
-            _animationController.reset();
-            _animationController.forward();
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder:
-                    (context) => CaffeineRecommendationPage(
-                      userId: widget.userId,
-                      selectedDate: widget.selectedDate,
-                      forceRecalculate: true,
-                    ),
-              ),
-            );
-          },
+          onPressed: sendAllDataAndFetchRecommendation,
           icon: const Icon(Icons.refresh, size: 20),
           label: Text(l10n.retry, style: const TextStyle(fontSize: 18)),
           style: ElevatedButton.styleFrom(
@@ -482,6 +345,23 @@ class _CaffeineRecommendationPageState extends State<CaffeineRecommendationPage>
           ),
         ),
         const SizedBox(height: 15),
+        if (_failure?.code == 'sleep_wake_overlap')
+          TextButton.icon(
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder:
+                      (_) => UserInputHistoryPage(
+                        userId: widget.userId,
+                        selectedDate: widget.selectedDate,
+                      ),
+                ),
+              );
+              if (mounted) await sendAllDataAndFetchRecommendation();
+            },
+            icon: const Icon(Icons.edit_note),
+            label: Text(l10n.inputHistory),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(

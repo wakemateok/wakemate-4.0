@@ -98,6 +98,11 @@ String reviewText(String key, String language) {
       'Your records are saved, but recommendations could not be updated. Refresh again later.',
       'Catatan tersimpan, tetapi rekomendasi belum dapat diperbarui. Muat ulang nanti.',
     ],
+    'savedRecommendationPending': [
+      '紀錄已儲存，但推薦尚未更新；不必重複新增。',
+      'Your records are saved, but recommendations are not updated. Do not add the same records again.',
+      'Catatan sudah tersimpan, tetapi rekomendasi belum diperbarui. Jangan menambah catatan yang sama lagi.',
+    ],
   };
   final index =
       language.startsWith('id')

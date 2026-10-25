@@ -5,10 +5,12 @@ import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/recommendation_invalidation.dart';
+import 'package:my_app/api/recommendation_failure.dart';
 
 class RecordSaveException implements Exception {
-  const RecordSaveException(this.code);
+  const RecordSaveException(this.code, [this.detail]);
   final String code;
+  final Map<String, dynamic>? detail;
 }
 
 Future<void> replaceDayRecords({
@@ -52,8 +54,12 @@ Future<void> replaceDayRecords({
           throw const RecordSaveException('server_unavailable');
         }
         if (response.statusCode != 200 || decoded['status'] != 'success') {
+          final detail = decoded['detail'];
           throw RecordSaveException(
-            decoded['detail']?.toString() ?? 'save_failed',
+            detail is Map
+                ? detail['type']?.toString() ?? 'save_failed'
+                : detail?.toString() ?? 'save_failed',
+            detail is Map ? Map<String, dynamic>.from(detail) : null,
           );
         }
         if (decoded['changed'] != false) {
@@ -82,6 +88,11 @@ String recordSaveErrorText(Object error, AppLocalizations l10n) {
   final code = error is RecordSaveException ? error.code : 'unconfirmed';
   switch (code) {
     case 'sleep_wake_overlap':
+      final failure = RecommendationFailure(
+        code,
+        error is RecordSaveException ? error.detail : null,
+      );
+      return '${failure.message(language)}\n${text('本次輸入未儲存，原紀錄未變更。', 'This input was not saved. Existing records were not changed.', 'Isian ini belum disimpan. Catatan lama tidak diubah.')}';
     case 'periods_overlap':
       return text(
         '時段與其他紀錄重疊，請調整後再儲存。原紀錄未變更。',

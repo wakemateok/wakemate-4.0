@@ -10,6 +10,7 @@ import 'package:my_app/config/questionnaire_links.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/services/notification_service.dart';
+import 'package:my_app/services/recommendation_invalidation.dart';
 import 'package:my_app/utils/recommendation_deduplication.dart';
 import 'package:my_app/utils/review_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -47,6 +48,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   late final HomeRepository _repository;
   HomeSnapshot? _snapshot;
   bool _loading = true, _showGuide = false;
+  bool _recordsSaved = false;
   String? _error, _reminderSignature;
   String? _lastLanguage;
   int _requestEpoch = 0;
@@ -124,7 +126,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await prefs.setBool('home_guide_seen_${widget.userId}', true);
   }
 
-  Future<void> _refreshData({bool recalculate = false}) async {
+  Future<void> _refreshData({
+    bool recalculate = false,
+    bool recordsSaved = false,
+  }) async {
     if (!mounted) return;
     if (recalculate) _reminderSignature = null;
     final epoch = ++_requestEpoch;
@@ -132,8 +137,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       setState(() {
         _loading = true;
         _error = null;
+        _recordsSaved = recordsSaved;
       });
     try {
+      if (recalculate)
+        await invalidateFutureRecommendations(userId: widget.userId);
       final snapshot = await _repository.load(
         widget.userId,
         recalculate: recalculate,
@@ -409,6 +417,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ).push(MaterialPageRoute(builder: (_) => page));
     if (mounted) {
       await _refreshData(
+        recordsSaved: changed == true,
         recalculate:
             changed == true ||
             page is SettingsPage ||
@@ -638,7 +647,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _recommendations() {
     final l10n = AppLocalizations.of(context)!;
-    final rows = _snapshot?.recommendationsOn(_selectedDate) ?? [];
+    final rows =
+        _loading || _error != null
+            ? <Map<String, dynamic>>[]
+            : _snapshot?.recommendationsOn(_selectedDate) ?? [];
     final snapshot = _snapshot;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -818,11 +830,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_showGuide) _guide(),
+                      if (_error != null && _recordsSaved)
+                        Text(
+                          text('savedRecommendationPending'),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Text(
-                            text(_error!),
+                            _error == 'calculationFailed' &&
+                                    _snapshot?.recommendationFailure != null
+                                ? _snapshot!.recommendationFailure!.message(
+                                  _language,
+                                )
+                                : text(_error!),
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.error,
                             ),

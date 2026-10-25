@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:my_app/api/api_config.dart';
 import 'package:my_app/api/authenticated_http.dart' as http;
 import 'package:my_app/api/taipei_time.dart';
+import 'package:my_app/api/recommendation_failure.dart';
 import 'package:my_app/utils/recommendation_deduplication.dart';
 
 String dayKey(DateTime date) =>
@@ -23,6 +24,7 @@ class HomeSnapshot {
     required this.hasProfile,
     this.hasTest = false,
     this.calculationFailed = false,
+    this.recommendationFailure,
   }) {
     final caffeine = <String, double>{};
     final sleepPeriods = <String, List<(DateTime, DateTime)>>{};
@@ -69,6 +71,7 @@ class HomeSnapshot {
   }
   final List<Map<String, dynamic>> sleeps, wakes, intakes, recommendations;
   final bool hasProfile, hasTest, calculationFailed;
+  final RecommendationFailure? recommendationFailure;
   final Map<String, DaySummary> days = {};
   bool get hasSleep => sleeps.any(activeRecord);
   bool get hasWake => wakes.any(activeRecord);
@@ -112,8 +115,13 @@ class HomeRepository {
       _read('users_body_info', userId),
       _read('users_pvt', userId),
     ]);
-    var calculationFailed = false;
+    RecommendationFailure? failure = findSleepWakeConflict(
+      records[0],
+      records[1],
+    );
+    var calculationFailed = failure != null;
     if (recalculate &&
+        failure == null &&
         records[0].any(HomeSnapshot.activeRecord) &&
         records[1].any(HomeSnapshot.activeRecord)) {
       try {
@@ -121,18 +129,46 @@ class HomeRepository {
             .post(Uri.parse('${ApiConfig.baseUrl}/calculate/?user_id=$userId'))
             .timeout(const Duration(seconds: 120));
         calculationFailed = response.statusCode != 200;
+        if (calculationFailed)
+          failure = RecommendationFailure.fromBody(response.body);
         if (!calculationFailed) {
           final body = jsonDecode(response.body);
           calculationFailed =
               body is! Map || !['ok', 'success'].contains(body['status']);
+          if (calculationFailed)
+            failure = RecommendationFailure.fromBody(response.body);
         }
       } catch (_) {
         calculationFailed = true;
+        failure = const RecommendationFailure('unavailable');
       }
     }
     List<Map<String, dynamic>> recommendations = [];
     try {
-      final serverRecommendations = await _read('recommendations', userId);
+      final response =
+          failure == null
+              ? await _client
+                  .get(
+                    Uri.parse(
+                      '${ApiConfig.baseUrl}/recommendations/?user_id=$userId',
+                    ),
+                  )
+                  .timeout(const Duration(seconds: 60))
+              : null;
+      if (response != null && response.statusCode != 200) {
+        failure = RecommendationFailure.fromBody(response.body);
+        calculationFailed = true;
+      }
+      final serverRecommendations =
+          response?.statusCode == 200
+              ? recommendationMapsFrom(
+                jsonDecode(utf8.decode(response!.bodyBytes)),
+              )
+              : <Map<String, dynamic>>[];
+      if (serverRecommendations.any(
+        (row) => row['user_id']?.toString() != userId,
+      ))
+        throw StateError('unexpected_record_owner');
       if (!calculationFailed &&
           records[0].any(HomeSnapshot.activeRecord) &&
           records[1].any(HomeSnapshot.activeRecord)) {
@@ -149,6 +185,7 @@ class HomeRepository {
       }
     } catch (_) {
       calculationFailed = true;
+      failure = const RecommendationFailure('unavailable');
     }
     return HomeSnapshot(
       sleeps: records[0],
@@ -158,6 +195,7 @@ class HomeRepository {
       hasProfile: records[3].isNotEmpty,
       hasTest: records[4].any(HomeSnapshot.activeRecord),
       calculationFailed: calculationFailed,
+      recommendationFailure: failure,
     );
   }
 

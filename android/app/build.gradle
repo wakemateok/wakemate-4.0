@@ -50,7 +50,7 @@ android {
             dimension "alertness"
             applicationIdSuffix ".pvtb"
             versionNameSuffix "-pvtb"
-            resValue "string", "app_name", "WakeMate PVT-B"
+            resValue "string", "app_name", "WakeMate"
         }
     }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/utils/auth_text.dart';
+import 'package:my_app/config/app_brand.dart';
 import 'RegisterPage.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
@@ -113,6 +114,17 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (AppBrand.enabled) ...[
+                          Image.asset(
+                            AppBrand.logoAsset,
+                            key: const ValueKey('login-logo'),
+                            width: 184,
+                            height: 128,
+                            fit: BoxFit.contain,
+                            semanticLabel: 'WakeMate',
+                          ),
+                          const SizedBox(height: 18),
+                        ],
                         Text(
                           l10n.loginTitle,
                           style: TextStyle(
@@ -229,20 +241,41 @@ class _LoginPageState extends State<LoginPage> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(l10n.noAccountPrompt),
-                              Text(
-                                l10n.registerLink,
-                                style: TextStyle(
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: _accentColor,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
+                          child:
+                              AppBrand.enabled
+                                  ? Text.rich(
+                                    TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '${l10n.noAccountPrompt} ',
+                                        ),
+                                        TextSpan(
+                                          text: l10n.registerLink,
+                                          style: TextStyle(
+                                            decoration:
+                                                TextDecoration.underline,
+                                            decorationColor: _accentColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  )
+                                  : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(l10n.noAccountPrompt),
+                                      Text(
+                                        l10n.registerLink,
+                                        style: TextStyle(
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: _accentColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                         ),
                       ],
                     ),

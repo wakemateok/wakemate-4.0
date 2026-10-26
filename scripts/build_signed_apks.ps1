@@ -1,4 +1,8 @@
-param([string]$Flutter = 'C:\src\flutter\bin\flutter.bat')
+param(
+    [string]$Flutter = 'C:\src\flutter\bin\flutter.bat',
+    [ValidateSet('legacy', 'pvtb')]
+    [string[]]$Flavors = @('pvtb')
+)
 $ErrorActionPreference = 'Stop'
 $secretRoot = Join-Path $env:USERPROFILE '.codex\secrets\wakemate-release'
 $keyStore = Join-Path $secretRoot 'wakemate-release.p12'
@@ -11,7 +15,7 @@ $env:WAKEMATE_KEY_ALIAS = 'wakemate-release'
 $env:WAKEMATE_KEY_PASSWORD = $env:WAKEMATE_KEYSTORE_PASSWORD
 Push-Location $repoRoot
 try {
-    foreach ($flavor in @('legacy', 'pvtb')) {
+    foreach ($flavor in $Flavors) {
         $mode = if ($flavor -eq 'legacy') { 'brief' } else { 'pvtb' }
         & $Flutter build apk --release --flavor $flavor "--dart-define=WAKEMATE_ALERTNESS_MODE=$mode"
         if ($LASTEXITCODE -ne 0) { throw "APK build failed: $flavor" }

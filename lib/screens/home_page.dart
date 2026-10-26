@@ -28,6 +28,7 @@ import 'drink_match_page.dart';
 import 'personalSettingsPage.dart';
 import 'feedback_page.dart';
 import 'package:my_app/utils/feedback_text.dart';
+import 'package:my_app/config/app_brand.dart';
 
 class HomePage extends StatefulWidget {
   final String userId, userName, email;
@@ -833,16 +834,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       appBar: AppBar(
         toolbarHeight: 72,
         titleSpacing: 4,
-        title: const FittedBox(
+        title: FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text(
-            'WakeMate',
-            key: ValueKey('home-brand'),
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (AppBrand.enabled) ...[
+                Image.asset(
+                  AppBrand.symbolAsset,
+                  key: const ValueKey('home-logo'),
+                  width: 42,
+                  height: 42,
+                  fit: BoxFit.contain,
+                  excludeFromSemantics: true,
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                'WakeMate',
+                key: const ValueKey('home-brand'),
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                  color: AppBrand.enabled ? AppBrand.wordmarkColor : null,
+                ),
+              ),
+            ],
           ),
         ),
         backgroundColor: const Color(0xFFEFF8F5),

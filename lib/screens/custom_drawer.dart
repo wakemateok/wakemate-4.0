@@ -8,6 +8,10 @@ import 'package:my_app/screens/personalSettingsPage.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/utils/auth_text.dart';
 import 'package:my_app/screens/change_password_page.dart';
+import 'package:my_app/screens/feedback_page.dart';
+import 'package:my_app/utils/feedback_text.dart';
+import 'package:my_app/utils/review_text.dart';
+import 'package:my_app/config/app_release.dart';
 
 class CustomDrawer extends StatelessWidget {
   static const String _configuredMode = String.fromEnvironment(
@@ -29,6 +33,7 @@ class CustomDrawer extends StatelessWidget {
   final VoidCallback? onDataChanged;
   final VoidCallback? onDailyQuestionnaireTap;
   final bool showDailyQuestionnaireBadge;
+  final VoidCallback? onGuideTap;
 
   const CustomDrawer({
     super.key,
@@ -38,6 +43,7 @@ class CustomDrawer extends StatelessWidget {
     this.onDataChanged,
     this.onDailyQuestionnaireTap,
     this.showDailyQuestionnaireBadge = false,
+    this.onGuideTap,
   });
 
   final Color _primaryColor = const Color(0xFF1F3D5B);
@@ -185,6 +191,36 @@ class CustomDrawer extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   children: [
                     const SizedBox(height: 8),
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.feedback_outlined,
+                      title: feedbackText(
+                        'title',
+                        Localizations.localeOf(context).languageCode,
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FeedbackPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    if (onGuideTap != null)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.checklist_outlined,
+                        title: reviewText(
+                          'guide',
+                          Localizations.localeOf(context).languageCode,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          onGuideTap?.call();
+                        },
+                      ),
                     if (onDailyQuestionnaireTap != null)
                       _buildDrawerItem(
                         context,
@@ -314,7 +350,7 @@ class CustomDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 15, top: 10),
                 child: Text(
-                    'WakeMate v1.2.4',
+                  'WakeMate v${AppRelease.version}',
                   style: TextStyle(
                     color: _primaryColor.withValues(alpha: 0.5),
                     fontSize: 12,

@@ -10,9 +10,16 @@ String dayKey(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
 class DaySummary {
-  const DaySummary({this.caffeineMg = 0, this.sleepHours = 0});
+  const DaySummary({
+    this.caffeineMg = 0,
+    this.sleepHours = 0,
+    bool? hasCaffeineRecord,
+    bool? hasSleepRecord,
+  }) : hasCaffeineRecord = hasCaffeineRecord ?? caffeineMg > 0,
+       hasSleepRecord = hasSleepRecord ?? sleepHours > 0;
   final double caffeineMg;
   final double sleepHours;
+  final bool hasCaffeineRecord, hasSleepRecord;
 }
 
 class HomeSnapshot {
@@ -66,6 +73,8 @@ class HomeSnapshot {
       days[key] = DaySummary(
         caffeineMg: caffeine[key] ?? 0,
         sleepHours: duration.inMinutes / 60,
+        hasCaffeineRecord: caffeine.containsKey(key),
+        hasSleepRecord: sleepPeriods.containsKey(key),
       );
     }
   }

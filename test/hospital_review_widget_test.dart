@@ -184,6 +184,8 @@ void main() {
           await tester.pumpAndSettle();
           final day = find.text('${selectedDay.day}').first;
           await tester.ensureVisible(day);
+          await tester.pumpAndSettle();
+          expect(day.hitTestable(), findsOneWidget);
           await tester.tap(day);
           await tester.pumpAndSettle();
           expect(find.byType(BottomSheet), findsOneWidget);

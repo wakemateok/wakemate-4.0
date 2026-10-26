@@ -26,6 +26,8 @@ import 'alertness_test.dart';
 import 'custom_drawer.dart';
 import 'drink_match_page.dart';
 import 'personalSettingsPage.dart';
+import 'feedback_page.dart';
+import 'package:my_app/utils/feedback_text.dart';
 
 class HomePage extends StatefulWidget {
   final String userId, userName, email;
@@ -630,8 +632,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
     return Semantics(
-      label:
-          '${dayKey(day)}, ${text('sleep')}: ${sleep.toStringAsFixed(1)} h, ${text('caffeine')}: ${caffeine.round()} mg',
+      label: [
+        dayKey(day),
+        if (stats?.hasSleepRecord == true)
+          '${text('sleep')}: ${sleep.toStringAsFixed(1)} h',
+        if (stats?.hasCaffeineRecord == true)
+          '${text('caffeine')}: ${caffeine.round()} mg',
+      ].join(', '),
       selected: selected,
       child: Container(
         margin: const EdgeInsets.all(2),
@@ -655,14 +662,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ),
               amount(
-                _snapshot == null
-                    ? '-'
-                    : NumberFormat.compact(locale: _language).format(caffeine),
+                stats?.hasCaffeineRecord == true
+                    ? NumberFormat.compact(locale: _language).format(caffeine)
+                    : '',
                 const Color(0xFFE0A32A),
                 caffeine / maxCaffeine,
               ),
               amount(
-                _snapshot == null ? '-' : sleep.toStringAsFixed(1),
+                stats?.hasSleepRecord == true ? sleep.toStringAsFixed(1) : '',
                 const Color(0xFF329D8E),
                 sleep / maxSleep,
               ),
@@ -816,6 +823,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         userName: widget.userName,
         userEmail: widget.email,
         onDataChanged: () => _refreshData(recalculate: true),
+        onGuideTap: () => setState(() => _showGuide = !_showGuide),
         showDailyQuestionnaireBadge: _showDailyQuestionnaireBadge,
         onDailyQuestionnaireTap:
             _isLoadingQuestionnaireLinks || !_questionnaireLinks.hasDailyLink
@@ -823,8 +831,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 : () => _showDailyQuestionnaireDialog(markAsSeenOnClose: true),
       ),
       appBar: AppBar(
-        title: const FittedBox(fit: BoxFit.scaleDown, child: Text('WakeMate')),
-        backgroundColor: Colors.white,
+        toolbarHeight: 72,
+        titleSpacing: 4,
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'WakeMate',
+            key: ValueKey('home-brand'),
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+        backgroundColor: const Color(0xFFEFF8F5),
         foregroundColor: _primaryColor,
         leading: Builder(
           builder:
@@ -836,9 +857,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
         actions: [
           IconButton(
-            tooltip: text('guide'),
-            icon: const Icon(Icons.checklist_outlined),
-            onPressed: () => setState(() => _showGuide = !_showGuide),
+            key: const ValueKey('home-feedback'),
+            tooltip: feedbackText('title', _language),
+            icon: const Icon(Icons.feedback_outlined),
+            onPressed:
+                () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const FeedbackPage())),
           ),
           IconButton(
             key: const ValueKey('home-refresh'),
@@ -986,14 +1011,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         spacing: 24,
                         runSpacing: 8,
                         children: [
-                          Text(
-                            '${text('caffeine')}: ${summary?.caffeineMg.round() ?? '-'} mg',
-                            style: const TextStyle(fontSize: 17),
-                          ),
-                          Text(
-                            '${text('sleep')}: ${summary?.sleepHours.toStringAsFixed(1) ?? '-'} h',
-                            style: const TextStyle(fontSize: 17),
-                          ),
+                          if (summary?.hasCaffeineRecord == true)
+                            Text(
+                              '${text('caffeine')}: ${summary?.caffeineMg.round() ?? '-'} mg',
+                              style: const TextStyle(fontSize: 17),
+                            ),
+                          if (summary?.hasSleepRecord == true)
+                            Text(
+                              '${text('sleep')}: ${summary?.sleepHours.toStringAsFixed(1) ?? '-'} h',
+                              style: const TextStyle(fontSize: 17),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 12),

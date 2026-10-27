@@ -120,6 +120,169 @@ class NotificationService {
         return true;
       });
 
+  Future<NotificationReadiness> notificationReadiness({
+    String languageCode = 'zh',
+  }) async {
+    await initialize();
+    if (!_supported) return const NotificationReadiness();
+    final android =
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+    final channels = await android?.getNotificationChannels();
+    final caffeineChannel = channels?.where(
+      (channel) => channel.id == _channelId(languageCode),
+    );
+    return NotificationReadiness(
+      notificationsEnabled: await android?.areNotificationsEnabled(),
+      exactAlarmsAllowed: await android?.canScheduleExactNotifications(),
+      caffeineChannelEnabled:
+          caffeineChannel == null || caffeineChannel.isEmpty
+              ? null
+              : caffeineChannel.first.importance != Importance.none,
+    );
+  }
+
+  Future<bool> requestExactReminderPermission({
+    required String languageCode,
+  }) => _runExclusive(() async {
+    await initialize();
+    if (!_supported) return false;
+    final android =
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+    if (await android?.canScheduleExactNotifications() != true &&
+        await android?.requestExactAlarmsPermission() != true) {
+      return false;
+    }
+    // Permission changes do not upgrade existing inexact alarms automatically.
+    final pending = await _plugin.pendingNotificationRequests();
+    for (final request in pending) {
+      final payload = request.payload ?? '';
+      final prefix =
+          payload.startsWith('caffeine_reminder:')
+              ? 'caffeine_reminder:'
+              : payload.startsWith('notification_schedule_test:')
+              ? 'notification_schedule_test:'
+              : null;
+      if (prefix == null) continue;
+      final parsed = DateTime.tryParse(payload.substring(prefix.length));
+      if (parsed == null || !parsed.isAfter(DateTime.now())) continue;
+      final precision = await _scheduleCaffeineReminder(
+        id: request.id,
+        title: request.title ?? '',
+        body: request.body ?? '',
+        languageCode: languageCode,
+        scheduledTime: tz.TZDateTime.from(parsed.toUtc(), tz.local),
+        payload: payload,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      final history = await loadNotificationHistory();
+      await prefs.setString(
+        _historyKey,
+        jsonEncode(
+          history.map((entry) {
+            final json = entry.toJson();
+            final id =
+                entry.reminderKey == null
+                    ? null
+                    : _notificationId(entry.reminderKey!);
+            if (id == request.id && entry.scheduledAt == parsed.toUtc()) {
+              json['status'] = _scheduleStatus(precision);
+            }
+            return json;
+          }).toList(),
+        ),
+      );
+    }
+    return true;
+  });
+
+  Future<ReminderSchedulePrecision?> scheduleOneMinuteTest({
+    required String languageCode,
+  }) => _runExclusive(() async {
+    await initialize();
+    if (!_supported) return null;
+    await _requestNotificationPermission();
+    await _cancelScheduledTests();
+    final time = tz.TZDateTime.now(tz.local).add(const Duration(minutes: 1));
+    final key = 'notification_schedule_test|${time.toUtc().toIso8601String()}';
+    final text = switch (languageCode) {
+      'en' => const _NotificationText(
+        'WakeMate scheduled test',
+        'Scheduled reminder test. This is not a caffeine recommendation.',
+      ),
+      'id' => const _NotificationText(
+        'Tes pengingat WakeMate',
+        'Tes pengingat terjadwal. Ini bukan rekomendasi kafein.',
+      ),
+      _ => const _NotificationText('WakeMate 定時通知測試', '這是一分鐘提醒測試，不是咖啡因攝取建議。'),
+    };
+    final precision = await _scheduleCaffeineReminder(
+      id: _notificationId(key),
+      title: text.title,
+      body: text.body,
+      languageCode: languageCode,
+      scheduledTime: time,
+      payload: 'notification_schedule_test:${time.toUtc().toIso8601String()}',
+    );
+    await _appendHistory(
+      type: 'scheduled_test',
+      status: _scheduleStatus(precision),
+      title: text.title,
+      body: text.body,
+      scheduledAt: time,
+      reminderKey: key,
+    );
+    return precision;
+  });
+
+  Future<void> reconcileVisibleNotifications() => _runExclusive(() async {
+    await initialize();
+    if (!_supported) return;
+    final active = await _plugin.getActiveNotifications();
+    if (active.isEmpty) return;
+    final history = await loadNotificationHistory();
+    var changed = false;
+    // Android's plugin result has no payload. IDs include the account/time or
+    // unique diagnostic time, so an older visible test cannot confirm a new one.
+    final updated =
+        history.map((entry) {
+          final json = entry.toJson();
+          final id =
+              ['scheduled_test', 'caffeine_reminder'].contains(entry.type) &&
+                      entry.reminderKey != null
+                  ? _notificationId(entry.reminderKey!)
+                  : null;
+          if (id != null &&
+              entry.scheduledAt != null &&
+              active.any(
+                (notification) =>
+                    notification.id == id &&
+                    notification.title == entry.title &&
+                    notification.body == entry.body,
+              )) {
+            json['status'] = 'posted';
+            changed = changed || entry.status != 'posted';
+          }
+          return json;
+        }).toList();
+    if (changed) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_historyKey, jsonEncode(updated));
+    }
+  });
+
+  String _scheduleStatus(ReminderSchedulePrecision? precision) =>
+      switch (precision) {
+        ReminderSchedulePrecision.exact => 'scheduled',
+        ReminderSchedulePrecision.inexact => 'scheduled_inexact',
+        null => 'schedule_failed',
+      };
+
   Future<int> replaceCaffeineReminders({
     required List<dynamic> recommendations,
     required String languageCode,
@@ -198,11 +361,19 @@ class NotificationService {
       final timestamp = plan.timestamp;
       final scheduledTime = plan.time;
       final text = plan.text;
+      final wasPosted = previousHistory.any(
+        (entry) =>
+            entry.type == 'caffeine_reminder' &&
+            entry.reminderKey == reminderKey &&
+            entry.title == text.title &&
+            entry.body == text.body &&
+            entry.status == 'posted',
+      );
       if (retainedIds.contains(id) && !scheduledTime.isAfter(now)) {
         scheduledIds.add(id);
         await _appendHistory(
           type: 'caffeine_reminder',
-          status: 'due_unconfirmed',
+          status: wasPosted ? 'posted' : 'due_unconfirmed',
           title: text.title,
           body: text.body,
           scheduledAt: scheduledTime,
@@ -220,12 +391,18 @@ class NotificationService {
                 (entry.reminderKey == reminderKey ||
                     (entry.reminderKey == null &&
                         entry.scheduledAt == scheduledTime.toUtc())) &&
-                ['scheduled', 'sent', 'due_unconfirmed'].contains(entry.status),
+                [
+                  'scheduled',
+                  'scheduled_inexact',
+                  'sent',
+                  'posted',
+                  'due_unconfirmed',
+                ].contains(entry.status),
           );
           if (alreadyQueued) {
             await _appendHistory(
               type: 'caffeine_reminder',
-              status: 'due_unconfirmed',
+              status: wasPosted ? 'posted' : 'due_unconfirmed',
               title: text.title,
               body: text.body,
               scheduledAt: scheduledTime,
@@ -251,7 +428,7 @@ class NotificationService {
         } else {
           await _appendHistory(
             type: 'caffeine_reminder',
-            status: 'skipped_past',
+            status: wasPosted ? 'posted' : 'skipped_past',
             title: text.title,
             body: text.body,
             scheduledAt: scheduledTime,
@@ -272,11 +449,11 @@ class NotificationService {
         payload: 'caffeine_reminder:$timestamp',
       );
 
-      if (scheduled) {
+      if (scheduled != null) {
         scheduledIds.add(id);
         await _appendHistory(
           type: 'caffeine_reminder',
-          status: 'scheduled',
+          status: _scheduleStatus(scheduled),
           title: text.title,
           body: text.body,
           scheduledAt: scheduledTime,
@@ -320,9 +497,60 @@ class NotificationService {
     if (!_supported) return;
     await _cancelPreviousReminders();
     await _plugin.cancel(id: 1001);
+    await _cancelScheduledTests();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final history = await loadNotificationHistory();
+      await prefs.setString(
+        _historyKey,
+        jsonEncode(
+          history.map((entry) {
+            final json = entry.toJson();
+            if (entry.type == 'scheduled_test' &&
+                ['scheduled', 'scheduled_inexact'].contains(entry.status)) {
+              json['status'] = 'cancelled';
+            }
+            return json;
+          }).toList(),
+        ),
+      );
+    } catch (error) {
+      debugPrint('Test alarm cancelled; history cache update failed: $error');
+    }
   });
 
-  Future<bool> _scheduleCaffeineReminder({
+  Future<void> _cancelScheduledTests() async {
+    final pending = await _plugin.pendingNotificationRequests();
+    final ids =
+        pending
+            .where(
+              (request) =>
+                  request.payload?.startsWith('notification_schedule_test:') ==
+                  true,
+            )
+            .map((request) => request.id)
+            .toSet();
+    try {
+      final history = await loadNotificationHistory();
+      ids.addAll(
+        history
+            .where(
+              (entry) =>
+                  entry.type == 'scheduled_test' && entry.reminderKey != null,
+            )
+            .map((entry) => _notificationId(entry.reminderKey!)),
+      );
+    } catch (error) {
+      debugPrint(
+        'Test history unavailable; cancelling native tests directly: $error',
+      );
+    }
+    for (final id in ids) {
+      await _plugin.cancel(id: id);
+    }
+  }
+
+  Future<ReminderSchedulePrecision?> _scheduleCaffeineReminder({
     required int id,
     required String title,
     required String body,
@@ -340,7 +568,7 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         payload: payload,
       );
-      return true;
+      return ReminderSchedulePrecision.exact;
     } catch (exactError) {
       debugPrint('Exact caffeine reminder scheduling failed: $exactError');
     }
@@ -355,12 +583,12 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: payload,
       );
-      return true;
+      return ReminderSchedulePrecision.inexact;
     } catch (fallbackError) {
       debugPrint(
         'Fallback caffeine reminder scheduling failed: $fallbackError',
       );
-      return false;
+      return null;
     }
   }
 
@@ -415,7 +643,7 @@ class NotificationService {
           history.map((entry) {
             final json = entry.toJson();
             if (entry.type == 'caffeine_reminder' &&
-                entry.status == 'scheduled' &&
+                ['scheduled', 'scheduled_inexact'].contains(entry.status) &&
                 !(entry.reminderKey != null &&
                     retainIds.contains(_notificationId(entry.reminderKey!)))) {
               json['status'] =
@@ -509,6 +737,7 @@ class NotificationService {
       return '${entry.type}|${entry.reminderKey ?? entry.scheduledAt!.toUtc().toIso8601String()}';
     }
     if (entry.type == 'calculation_complete') return entry.type;
+    if (entry.type == 'scheduled_test') return entry.type;
     return '${entry.type}|${entry.createdAt.toUtc().toIso8601String()}';
   }
 
@@ -611,15 +840,10 @@ class NotificationService {
 
   NotificationDetails _notificationDetails(String languageCode) {
     final channelText = _channelText(languageCode);
-    final channelSuffix = switch (languageCode) {
-      'id' => 'id',
-      'en' => 'en',
-      _ => 'zh',
-    };
 
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        '${_channelIdBase}_$channelSuffix',
+        _channelId(languageCode),
         channelText.title,
         channelDescription: channelText.body,
         icon: _notificationIcon,
@@ -630,6 +854,13 @@ class NotificationService {
       ),
     );
   }
+
+  String _channelId(String languageCode) =>
+      '${_channelIdBase}_${switch (languageCode) {
+        'id' => 'id',
+        'en' => 'en',
+        _ => 'zh',
+      }}';
 }
 
 class _NotificationText {
@@ -641,6 +872,19 @@ class _NotificationText {
 
 class NotificationPermissionException implements Exception {
   const NotificationPermissionException();
+}
+
+enum ReminderSchedulePrecision { exact, inexact }
+
+class NotificationReadiness {
+  const NotificationReadiness({
+    this.notificationsEnabled,
+    this.exactAlarmsAllowed,
+    this.caffeineChannelEnabled,
+  });
+  final bool? notificationsEnabled;
+  final bool? exactAlarmsAllowed;
+  final bool? caffeineChannelEnabled;
 }
 
 class WakeMateNotificationLogEntry {

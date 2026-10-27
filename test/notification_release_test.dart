@@ -183,6 +183,12 @@ void main() {
             .data,
         '0',
       );
+      await tester.scrollUntilVisible(
+        find.byIcon(Icons.notifications_none_outlined),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       expect(find.byIcon(Icons.notifications_none_outlined), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

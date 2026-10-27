@@ -12,7 +12,8 @@ class NotificationCenterPage extends StatefulWidget {
   State<NotificationCenterPage> createState() => _NotificationCenterPageState();
 }
 
-class _NotificationCenterPageState extends State<NotificationCenterPage> {
+class _NotificationCenterPageState extends State<NotificationCenterPage>
+    with WidgetsBindingObserver {
   final Color _primaryColor = const Color(0xFF1F3D5B);
   final Color _accentColor = const Color(0xFF4DB6AC);
   final Color _bgLight = const Color(0xFFF7F9FC);
@@ -21,6 +22,10 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   int? _pendingReminderCount;
   bool _isLoading = true;
   bool _isSendingTest = false;
+  bool _isSchedulingTest = false;
+  bool _isRequestingExact = false;
+  int _loadGeneration = 0;
+  NotificationReadiness _readiness = const NotificationReadiness();
   String? _loadError;
   NotificationService get _notifications =>
       widget.notifications ?? NotificationService.instance;
@@ -28,7 +33,19 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRecords();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadRecords();
   }
 
   String _text({required String zh, required String en, required String id}) {
@@ -43,6 +60,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   Future<void> _loadRecords() async {
+    final generation = ++_loadGeneration;
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -51,7 +69,17 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     }
     List<WakeMateNotificationLogEntry> records = [];
     int? pendingReminderCount;
+    var readiness = const NotificationReadiness();
     Object? failure;
+    try {
+      await _notifications.reconcileVisibleNotifications();
+      if (!mounted) return;
+      readiness = await _notifications.notificationReadiness(
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
+    } catch (error) {
+      failure = error;
+    }
     try {
       records = await _notifications.loadNotificationHistory();
     } catch (error) {
@@ -63,10 +91,11 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     } catch (error) {
       failure ??= error;
     }
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _records = records;
       _pendingReminderCount = pendingReminderCount;
+      _readiness = readiness;
       _isLoading = false;
       _loadError = failure == null ? null : _notificationFailure(failure);
     });
@@ -150,6 +179,164 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     await _loadRecords();
   }
 
+  Future<void> _scheduleTest() async {
+    setState(() => _isSchedulingTest = true);
+    String message;
+    try {
+      final precision = await _notifications.scheduleOneMinuteTest(
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
+      if (!mounted) return;
+      message = switch (precision) {
+        ReminderSchedulePrecision.exact => _text(
+          zh: '已設定一分鐘後的測試提醒。請回到手機桌面或鎖屏後等待，並確認通知欄。',
+          en:
+              'Test scheduled for one minute from now. Go to the home screen or lock the phone, then check the notification tray.',
+          id:
+              'Tes dijadwalkan satu menit lagi. Kembali ke layar utama atau kunci ponsel, lalu periksa bilah notifikasi.',
+        ),
+        ReminderSchedulePrecision.inexact => _text(
+          zh: '已設定測試，但目前不是準時排程，可能延遲。請先開啟準時提醒權限。',
+          en:
+              'Test scheduled with possible delay. Enable exact reminder permission first.',
+          id:
+              'Tes dijadwalkan tetapi bisa terlambat. Aktifkan izin pengingat tepat waktu terlebih dahulu.',
+        ),
+        null => _text(
+          zh: '定時測試排程失敗，請回報此畫面。',
+          en: 'Scheduled test failed. Please report this screen.',
+          id: 'Tes terjadwal gagal. Laporkan layar ini.',
+        ),
+      };
+    } on NotificationPermissionException {
+      if (!mounted) return;
+      message = _text(
+        zh: '請先到手機設定開啟 WakeMate 通知。',
+        en: 'Enable WakeMate notifications in phone settings first.',
+        id: 'Aktifkan notifikasi WakeMate di setelan ponsel terlebih dahulu.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      message = _notificationFailure(error);
+    } finally {
+      if (mounted) setState(() => _isSchedulingTest = false);
+    }
+    await _loadRecords();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _requestExact() async {
+    setState(() => _isRequestingExact = true);
+    String message;
+    try {
+      final allowed = await _notifications.requestExactReminderPermission(
+        languageCode: Localizations.localeOf(context).languageCode,
+      );
+      if (!mounted) return;
+      message =
+          allowed
+              ? _text(
+                zh: '已允許準時排程，尚未到期的提醒已重新嘗試排程。請再執行一分鐘測試。',
+                en:
+                    'Exact scheduling allowed. Future reminders were retried. Run the one-minute test again.',
+                id:
+                    'Penjadwalan tepat waktu diizinkan. Pengingat mendatang dijadwalkan ulang. Jalankan tes satu menit lagi.',
+              )
+              : _text(
+                zh: '尚未允許準時排程，提醒可能延遲。',
+                en: 'Exact scheduling is not allowed; reminders may be delayed.',
+                id:
+                    'Penjadwalan tepat waktu belum diizinkan; pengingat bisa terlambat.',
+              );
+    } catch (error) {
+      if (!mounted) return;
+      message = _notificationFailure(error);
+    } finally {
+      if (mounted) setState(() => _isRequestingExact = false);
+    }
+    await _loadRecords();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _permissionValue(bool? value) =>
+      value == null
+          ? _text(zh: '未確認', en: 'Unknown', id: 'Belum dikonfirmasi')
+          : value
+          ? _text(zh: '已允許', en: 'Allowed', id: 'Diizinkan')
+          : _text(zh: '未允許', en: 'Not allowed', id: 'Tidak diizinkan');
+
+  Widget _buildReadiness() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        '${_text(zh: '手機通知權限', en: 'Notification permission', id: 'Izin notifikasi')}: ${_permissionValue(_readiness.notificationsEnabled)}',
+      ),
+      const SizedBox(height: 6),
+      if (_readiness.caffeineChannelEnabled != null) ...[
+        Text(
+          '${_text(zh: '咖啡因通知分類', en: 'Caffeine notification channel', id: 'Kategori notifikasi kafein')}: ${_permissionValue(_readiness.caffeineChannelEnabled)}',
+          style: TextStyle(
+            color:
+                _readiness.caffeineChannelEnabled == false
+                    ? Colors.deepOrange
+                    : null,
+          ),
+        ),
+        const SizedBox(height: 6),
+      ],
+      Text(
+        '${_text(zh: '準時提醒權限', en: 'Exact reminder permission', id: 'Izin pengingat tepat waktu')}: ${_permissionValue(_readiness.exactAlarmsAllowed)}',
+        style: TextStyle(
+          color:
+              _readiness.exactAlarmsAllowed == false ? Colors.deepOrange : null,
+        ),
+      ),
+      if (_readiness.exactAlarmsAllowed != true)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            style: _diagnosticButtonStyle(),
+            key: const ValueKey('enable-exact-reminders'),
+            onPressed: _isRequestingExact ? null : _requestExact,
+            icon: const Icon(Icons.alarm_on),
+            label: Text(
+              _text(
+                zh: '開啟準時提醒',
+                en: 'Enable exact reminders',
+                id: 'Aktifkan pengingat tepat waktu',
+              ),
+            ),
+          ),
+        ),
+      OutlinedButton.icon(
+        style: _diagnosticButtonStyle(),
+        key: const ValueKey('schedule-one-minute-test'),
+        onPressed: _isSchedulingTest ? null : _scheduleTest,
+        icon: const Icon(Icons.timer_outlined),
+        label: Text(
+          _text(
+            zh: '一分鐘後提醒測試',
+            en: 'Test reminder in one minute',
+            id: 'Tes pengingat satu menit lagi',
+          ),
+        ),
+      ),
+    ],
+  );
+
+  ButtonStyle _diagnosticButtonStyle() => OutlinedButton.styleFrom(
+    foregroundColor: _primaryColor,
+    side: BorderSide(color: _primaryColor.withValues(alpha: 0.5)),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  );
+
   String _formatDateTime(DateTime value) {
     return DateFormat(
       'yyyy-MM-dd HH:mm',
@@ -160,8 +347,20 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     switch (status) {
       case 'sent':
         return _text(zh: '已送出', en: 'Sent', id: 'Terkirim');
+      case 'posted':
+        return _text(
+          zh: '通知列已確認',
+          en: 'Confirmed in notification tray',
+          id: 'Dikonfirmasi di bilah notifikasi',
+        );
       case 'scheduled':
         return _text(zh: '已排程', en: 'Scheduled', id: 'Terjadwal');
+      case 'scheduled_inexact':
+        return _text(
+          zh: '已排程・可能延遲',
+          en: 'Scheduled - may be delayed',
+          id: 'Terjadwal - bisa terlambat',
+        );
       case 'skipped_past':
         return _text(zh: '已過期', en: 'Past', id: 'Lewat');
       case 'schedule_failed':
@@ -183,6 +382,12 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     switch (type) {
       case 'test':
         return _text(zh: '測試通知', en: 'Test Notification', id: 'Tes Notifikasi');
+      case 'scheduled_test':
+        return _text(
+          zh: '定時通知測試',
+          en: 'Scheduled notification test',
+          id: 'Tes notifikasi terjadwal',
+        );
       case 'calculation_complete':
         return _text(
           zh: '計算完成',
@@ -203,8 +408,10 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   Color _statusColor(String status) {
     switch (status) {
       case 'sent':
+      case 'posted':
         return _accentColor;
       case 'scheduled':
+      case 'scheduled_inexact':
         return const Color(0xFFE9A93A);
       case 'skipped_past':
         return Colors.grey;
@@ -216,7 +423,13 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   Widget _buildRecordCard(WakeMateNotificationLogEntry record) {
-    final statusColor = _statusColor(record.status);
+    final status =
+        ['scheduled', 'scheduled_inexact'].contains(record.status) &&
+                record.scheduledAt != null &&
+                !record.scheduledAt!.isAfter(DateTime.now())
+            ? 'due_unconfirmed'
+            : record.status;
+    final statusColor = _statusColor(status);
 
     return Card(
       elevation: 1,
@@ -266,7 +479,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      _statusLabel(record.status),
+                      _statusLabel(status),
                       style: TextStyle(
                         color: statusColor,
                         fontSize: 12,
@@ -415,6 +628,8 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              _buildReadiness(),
               const SizedBox(height: 16),
               if (_isLoading)
                 const Center(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/screens/notification_center_page.dart';
+import 'package:my_app/services/notification_service.dart';
 import 'package:my_app/screens/CaffeineLogPage.dart';
 import 'package:my_app/screens/SleepTimeLogPage.dart';
 import 'package:my_app/screens/WakeTimeLogPage.dart';
@@ -36,7 +37,9 @@ void main() {
             ]),
           });
           for (final page in <Widget>[
-            const NotificationCenterPage(),
+            NotificationCenterPage(
+              notifications: NotificationService.forTesting(),
+            ),
             CaffeineLogPage(
               userId: 'test-user',
               selectedDate: DateTime(2026, 10, 20),

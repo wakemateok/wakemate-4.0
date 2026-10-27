@@ -125,12 +125,19 @@ class NotificationService {
     if (!_supported) return 0;
     await _requestNotificationPermission();
 
-    await _cancelPreviousReminders();
-
     final now = tz.TZDateTime.now(tz.local);
     final scheduledIds = <int>[];
     final seen = <String>{};
-    final previousHistory = await loadNotificationHistory();
+    final plans =
+        <
+          ({
+            int id,
+            String key,
+            String timestamp,
+            tz.TZDateTime time,
+            _NotificationText text,
+          })
+        >[];
 
     for (final item in recommendations) {
       if (item is! Map) continue;
@@ -149,6 +156,56 @@ class NotificationService {
       if (!seen.add(reminderKey)) continue;
       final id = _notificationId(reminderKey);
       final text = _reminderText(languageCode, amount);
+      plans.add((
+        id: id,
+        key: reminderKey,
+        timestamp: timestamp,
+        time: scheduledTime,
+        text: text,
+      ));
+    }
+
+    final pending = await _plugin.pendingNotificationRequests();
+    final retainedIds = <int>{};
+    for (final plan in plans) {
+      if (now.difference(plan.time) > _recentPastReminderGrace) continue;
+      if (pending.any(
+        (request) =>
+            request.id == plan.id &&
+            request.title == plan.text.title &&
+            request.body == plan.text.body &&
+            request.payload?.startsWith('caffeine_reminder:') == true &&
+            DateTime.tryParse(
+                  request.payload!.substring('caffeine_reminder:'.length),
+                )?.toUtc() ==
+                plan.time.toUtc(),
+      )) {
+        retainedIds.add(plan.id);
+      }
+    }
+
+    // An unchanged, overdue alarm may still be waiting for Android's inexact
+    // delivery. Cancelling it here would lose it without a replacement.
+    await _cancelPreviousReminders(retainIds: retainedIds);
+    final previousHistory = await loadNotificationHistory();
+    for (final plan in plans) {
+      final id = plan.id;
+      final reminderKey = plan.key;
+      final timestamp = plan.timestamp;
+      final scheduledTime = plan.time;
+      final text = plan.text;
+      if (retainedIds.contains(id) && !scheduledTime.isAfter(now)) {
+        scheduledIds.add(id);
+        await _appendHistory(
+          type: 'caffeine_reminder',
+          status: 'due_unconfirmed',
+          title: text.title,
+          body: text.body,
+          scheduledAt: scheduledTime,
+          reminderKey: reminderKey,
+        );
+        continue;
+      }
 
       if (!scheduledTime.isAfter(now)) {
         final minutesLate = now.difference(scheduledTime);
@@ -200,6 +257,8 @@ class NotificationService {
         continue;
       }
 
+      // Pending requests are plugin metadata, not proof that AlarmManager
+      // still holds the alarm. Re-arm future entries with the same ID.
       final scheduled = await _scheduleCaffeineReminder(
         id: id,
         title: text.title,
@@ -315,7 +374,7 @@ class NotificationService {
     throw const NotificationPermissionException();
   }
 
-  Future<void> _cancelPreviousReminders() async {
+  Future<void> _cancelPreviousReminders({Set<int> retainIds = const {}}) async {
     final pending = await _plugin.pendingNotificationRequests();
     SharedPreferences? prefs;
     List<String> savedIds = const [];
@@ -337,6 +396,7 @@ class NotificationService {
     };
 
     for (final id in ids) {
+      if (retainIds.contains(id)) continue;
       await _plugin.cancel(id: id);
     }
 
@@ -351,7 +411,9 @@ class NotificationService {
           history.map((entry) {
             final json = entry.toJson();
             if (entry.type == 'caffeine_reminder' &&
-                entry.status == 'scheduled') {
+                entry.status == 'scheduled' &&
+                !(entry.reminderKey != null &&
+                    retainIds.contains(_notificationId(entry.reminderKey!)))) {
               json['status'] =
                   entry.scheduledAt?.isAfter(now) == true
                       ? 'cancelled'

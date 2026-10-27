@@ -123,6 +123,135 @@ void main() {
   );
 
   test(
+    'one hundred unchanged refreshes re-arm one stable alarm without cancellation gaps',
+    () async {
+      final entry = recommendation(
+        DateTime.now().add(const Duration(hours: 2)),
+      );
+      await replace([entry]);
+      final id = pending.keys.single;
+      calls.clear();
+      for (var i = 0; i < 100; i++) {
+        expect(await replace([entry]), 1);
+      }
+      expect(pending.keys.single, id);
+      expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+      expect(
+        calls.where((call) => call.method == 'zonedSchedule'),
+        hasLength(100),
+      );
+      expect((await service.loadNotificationHistory()), hasLength(1));
+    },
+  );
+
+  test('reopening the app re-arms an unchanged future alarm', () async {
+    final entry = recommendation(DateTime.now().add(const Duration(hours: 2)));
+    await replace([entry]);
+    final id = pending.keys.single;
+    service = NotificationService.forTesting();
+    calls.clear();
+    expect(await replace([entry]), 1);
+    expect(pending.keys.single, id);
+    expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+    expect(calls.where((call) => call.method == 'zonedSchedule'), hasLength(1));
+  });
+
+  test(
+    'dose changes replace the alarm without leaving the old dose queued',
+    () async {
+      final at = DateTime.now().add(const Duration(hours: 2));
+      await replace([recommendation(at, 25)]);
+      final id = pending.keys.single;
+      calls.clear();
+      expect(await replace([recommendation(at, 75)]), 1);
+      expect(pending.keys.single, id);
+      expect(pending.values.single['body'], contains('75 mg'));
+      expect(calls.where((call) => call.method == 'cancel'), hasLength(1));
+      expect(
+        calls.where((call) => call.method == 'zonedSchedule'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test('changing language updates the native reminder text', () async {
+    final entry = recommendation(DateTime.now().add(const Duration(hours: 2)));
+    await replace([entry]);
+    final id = pending.keys.single;
+    calls.clear();
+    expect(
+      await service.replaceCaffeineReminders(
+        recommendations: [entry],
+        languageCode: 'zh',
+        userId: 'test-user',
+      ),
+      1,
+    );
+    expect(pending.keys.single, id);
+    expect(pending.values.single['title'], 'WakeMate 咖啡因提醒');
+    expect(calls.where((call) => call.method == 'cancel'), hasLength(1));
+  });
+
+  test('account changes cannot retain the previous account reminder', () async {
+    final entry = recommendation(DateTime.now().add(const Duration(hours: 2)));
+    await replace([entry]);
+    final oldId = pending.keys.single;
+    calls.clear();
+    expect(
+      await service.replaceCaffeineReminders(
+        recommendations: [entry],
+        languageCode: 'en',
+        userId: 'another-user',
+      ),
+      1,
+    );
+    expect(pending, hasLength(1));
+    expect(pending.keys.single, isNot(oldId));
+    expect(calls.where((call) => call.method == 'cancel'), hasLength(1));
+  });
+
+  test('clearing local history does not cancel a valid native alarm', () async {
+    final entry = recommendation(DateTime.now().add(const Duration(hours: 2)));
+    await replace([entry]);
+    await service.clearNotificationHistory();
+    calls.clear();
+    expect(await replace([entry]), 1);
+    expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+    expect(
+      (await service.loadNotificationHistory()).single.status,
+      'scheduled',
+    );
+  });
+
+  test(
+    'equivalent UTC and Taipei timestamp formats retain the same alarm',
+    () async {
+      final at = DateTime.now().add(const Duration(hours: 2)).toUtc();
+      final localTime = at
+          .add(const Duration(hours: 8))
+          .toIso8601String()
+          .replaceFirst('Z', '+08:00');
+      await replace([recommendation(at)]);
+      calls.clear();
+      expect(
+        await replace([
+          {
+            'recommended_caffeine_intake_timing': localTime,
+            'recommended_caffeine_amount': 25,
+          },
+        ]),
+        1,
+      );
+      expect(pending, hasLength(1));
+      expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+      expect(
+        calls.where((call) => call.method == 'zonedSchedule'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'concurrent recalculations do not leave an orphaned OS schedule',
     () async {
       final first = recommendation(
@@ -166,6 +295,45 @@ void main() {
     expect(calls.where((call) => call.method == 'show').length, 1);
     expect((await service.loadNotificationHistory()).length, 1);
   });
+
+  test(
+    'refresh must not cancel an unchanged reminder still waiting for Android delivery',
+    () async {
+      final at = DateTime.now().subtract(const Duration(minutes: 1));
+      final key = 'test-user|${at.toUtc().toIso8601String()}';
+      await replace([recommendation(at)]);
+      final id =
+          calls.lastWhere((call) => call.method == 'show').arguments as Map;
+      // Model a native alarm that Android has not delivered yet, using the
+      // actual stable reminder ID and the original scheduled history entry.
+      SharedPreferences.setMockInitialValues({
+        'wakemate_notification_history': jsonEncode([
+          {
+            'type': 'caffeine_reminder',
+            'status': 'scheduled',
+            'title': 'WakeMate caffeine reminder',
+            'body': 'It is time for the recommended 25 mg of caffeine.',
+            'createdAt':
+                at.subtract(const Duration(hours: 1)).toUtc().toIso8601String(),
+            'scheduledAt': at.toUtc().toIso8601String(),
+            'reminderKey': key,
+          },
+        ]),
+      });
+      pending.clear();
+      pending[id['id'] as int] = {
+        'id': id['id'],
+        'title': 'WakeMate caffeine reminder',
+        'body': 'It is time for the recommended 25 mg of caffeine.',
+        'payload': 'caffeine_reminder:${at.toUtc().toIso8601String()}',
+      };
+      calls.clear();
+      expect(await replace([recommendation(at)]), 1);
+      expect(pending, hasLength(1));
+      expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+      expect(calls.where((call) => call.method == 'show'), isEmpty);
+    },
+  );
 
   test(
     'denied permission is explicit and works after enabling in settings',

@@ -111,7 +111,9 @@ void main() {
               };
               return null;
             case 'cancel':
-              pending.remove((call.arguments as Map)['id']);
+              final id = (call.arguments as Map)['id'];
+              pending.remove(id);
+              active.removeWhere((notification) => notification['id'] == id);
               return null;
             default:
               return null;
@@ -178,28 +180,6 @@ void main() {
   );
 
   test(
-    'one minute test uses the same native alarm path, not immediate show or a caffeine instruction',
-    () async {
-      exactAllowed = true;
-      final before = DateTime.now().toUtc();
-      expect(
-        await service.scheduleOneMinuteTest(languageCode: 'en'),
-        ReminderSchedulePrecision.exact,
-      );
-      final entry = (await service.loadNotificationHistory()).single;
-      expect(entry.type, 'scheduled_test');
-      expect(
-        entry.scheduledAt!.difference(before).inSeconds,
-        inInclusiveRange(59, 62),
-      );
-      expect(entry.body, contains('not a caffeine recommendation'));
-      expect(calls.where((c) => c.method == 'zonedSchedule'), hasLength(1));
-      expect(calls.where((c) => c.method == 'show'), isEmpty);
-      expect(await service.pendingCaffeineReminderCount(), 0);
-    },
-  );
-
-  test(
     'denied exact access does not claim an upgrade or change pending alarms',
     () async {
       await replace();
@@ -229,24 +209,19 @@ void main() {
     expect(calls.where((c) => c.method == 'zonedSchedule'), isEmpty);
   });
 
-  test('one minute test exposes inexact and total schedule failure', () async {
-    expect(
-      await service.scheduleOneMinuteTest(languageCode: 'en'),
-      ReminderSchedulePrecision.inexact,
-    );
-    expect(
-      (await service.loadNotificationHistory()).first.status,
-      'scheduled_inexact',
-    );
-    failAllSchedules = true;
-    expect(await service.scheduleOneMinuteTest(languageCode: 'en'), isNull);
-    expect(
-      (await service.loadNotificationHistory()).first.status,
-      'schedule_failed',
-    );
-    expect((await service.loadNotificationHistory()), hasLength(1));
-    expect(pending, isEmpty);
-  });
+  test(
+    'total caffeine scheduling failure is explicit and has no queued alarm',
+    () async {
+      failAllSchedules = true;
+      expect(await replace(), 0);
+      expect(
+        (await service.loadNotificationHistory()).first.status,
+        'schedule_failed',
+      );
+      expect((await service.loadNotificationHistory()), hasLength(1));
+      expect(pending, isEmpty);
+    },
+  );
 
   test('removal from pending metadata alone never proves delivery', () async {
     exactAllowed = true;
@@ -311,37 +286,85 @@ void main() {
   );
 
   test(
-    'a stale visible diagnostic notification cannot confirm a new test',
+    'upgrade removes retired test alarms and history without changing real reminders',
     () async {
-      exactAllowed = true;
-      await service.scheduleOneMinuteTest(languageCode: 'en');
-      final oldId = pending.keys.single;
-      active.add(
-        Map<String, dynamic>.from(pending.values.single)..remove('payload'),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 2));
-      await service.scheduleOneMinuteTest(languageCode: 'en');
-      expect(pending.keys.single, isNot(oldId));
-      await service.reconcileVisibleNotifications();
+      final timestamp = at.toUtc().toIso8601String();
+      SharedPreferences.setMockInitialValues({
+        'user_name': 'Keep this name',
+        'wakemate_notification_history': jsonEncode([
+          {
+            'type': 'scheduled_test',
+            'status': 'scheduled',
+            'title': 'old test',
+            'body': 'old test body',
+            'createdAt': timestamp,
+            'scheduledAt': timestamp,
+            'reminderKey': 'notification_schedule_test|$timestamp',
+          },
+          {
+            'type': 'caffeine_reminder',
+            'status': 'scheduled',
+            'title': 'real reminder',
+            'body': '100 mg',
+            'createdAt': timestamp,
+            'scheduledAt': timestamp,
+            'reminderKey': 'owner|$timestamp',
+          },
+          {
+            'type': 'test',
+            'status': 'sent',
+            'title': 'instant test',
+            'body': 'instant test body',
+            'createdAt': timestamp,
+          },
+        ]),
+      });
+      pending[701] = {
+        'id': 701,
+        'payload': 'notification_schedule_test:$timestamp',
+      };
+      pending[702] = {'id': 702, 'payload': 'caffeine_reminder:$timestamp'};
+      pending[703] = {'id': 703, 'payload': 'unrelated'};
+      await service.initialize();
+      expect(pending.keys.toSet(), {702, 703});
+      final history = await service.loadNotificationHistory();
+      expect(history.map((entry) => entry.type).toSet(), {
+        'caffeine_reminder',
+        'test',
+      });
       expect(
-        (await service.loadNotificationHistory()).single.status,
+        history.firstWhere((entry) => entry.type == 'caffeine_reminder').status,
         'scheduled',
       );
+      expect(
+        (await SharedPreferences.getInstance()).getString('user_name'),
+        'Keep this name',
+      );
+      final cancelCount = calls.where((call) => call.method == 'cancel').length;
+      await service.initialize();
+      expect(
+        calls.where((call) => call.method == 'cancel'),
+        hasLength(cancelCount),
+      );
+      expect(calls.where((call) => call.method == 'cancelAll'), isEmpty);
     },
   );
 
-  test('logout cancels diagnostic test as well as caffeine alarms', () async {
-    exactAllowed = true;
-    await replace();
-    await service.scheduleOneMinuteTest(languageCode: 'en');
-    expect(pending.length, 2);
-    await service.cancelCaffeineReminders();
-    expect(pending, isEmpty);
-  });
+  test(
+    'instant notification test and real reminder cancellation remain available',
+    () async {
+      exactAllowed = true;
+      await replace();
+      expect(await service.showTestNotification(languageCode: 'en'), isTrue);
+      expect(pending.length, 1);
+      await service.cancelCaffeineReminders();
+      expect(pending, isEmpty);
+    },
+  );
 
   for (final language in ['zh', 'en', 'id']) {
     testWidgets(
-      '$language permission and timed-test controls fit a small phone',
+      '$language permission controls fit and retired timed test is absent',
       (tester) async {
         service = NotificationService.forTesting();
         tester.view.physicalSize = const Size(320, 640);
@@ -368,24 +391,14 @@ void main() {
           find.byKey(const ValueKey('enable-exact-reminders')),
           findsNothing,
         );
-        final timedTest = find.byKey(
-          const ValueKey('schedule-one-minute-test'),
+        expect(
+          find.byKey(const ValueKey('schedule-one-minute-test')),
+          findsNothing,
         );
-        await tester.ensureVisible(timedTest);
-        await tester.pumpAndSettle();
-        await tester.tap(timedTest);
-        await tester.pumpAndSettle();
-        expect(pending, hasLength(1));
+        expect(find.byIcon(Icons.timer_outlined), findsNothing);
+        expect(pending, isEmpty);
         expect(tester.takeException(), isNull);
-        final prefs = await SharedPreferences.getInstance();
-        final history = jsonDecode(
-          prefs.getString('wakemate_notification_history')!,
-        );
-        expect(history.first['type'], 'scheduled_test');
-        await qa.screenshot(
-          tester,
-          'notification-one-minute-test-$language-20261027',
-        );
+        await qa.screenshot(tester, 'notification-cleanup-$language-20261027');
       },
     );
   }

@@ -64,6 +64,11 @@ class NotificationService {
     if (initialized != true) {
       throw PlatformException(code: 'notification_initialization_failed');
     }
+    try {
+      await _retireScheduledTests();
+    } catch (error) {
+      debugPrint('Retired diagnostic cleanup could not finish: $error');
+    }
     _supported = true;
     _initialized = true;
   }
@@ -162,13 +167,8 @@ class NotificationService {
     final pending = await _plugin.pendingNotificationRequests();
     for (final request in pending) {
       final payload = request.payload ?? '';
-      final prefix =
-          payload.startsWith('caffeine_reminder:')
-              ? 'caffeine_reminder:'
-              : payload.startsWith('notification_schedule_test:')
-              ? 'notification_schedule_test:'
-              : null;
-      if (prefix == null) continue;
+      const prefix = 'caffeine_reminder:';
+      if (!payload.startsWith(prefix)) continue;
       final parsed = DateTime.tryParse(payload.substring(prefix.length));
       if (parsed == null || !parsed.isAfter(DateTime.now())) continue;
       final precision = await _scheduleCaffeineReminder(
@@ -201,45 +201,6 @@ class NotificationService {
     return true;
   });
 
-  Future<ReminderSchedulePrecision?> scheduleOneMinuteTest({
-    required String languageCode,
-  }) => _runExclusive(() async {
-    await initialize();
-    if (!_supported) return null;
-    await _requestNotificationPermission();
-    await _cancelScheduledTests();
-    final time = tz.TZDateTime.now(tz.local).add(const Duration(minutes: 1));
-    final key = 'notification_schedule_test|${time.toUtc().toIso8601String()}';
-    final text = switch (languageCode) {
-      'en' => const _NotificationText(
-        'WakeMate scheduled test',
-        'Scheduled reminder test. This is not a caffeine recommendation.',
-      ),
-      'id' => const _NotificationText(
-        'Tes pengingat WakeMate',
-        'Tes pengingat terjadwal. Ini bukan rekomendasi kafein.',
-      ),
-      _ => const _NotificationText('WakeMate 定時通知測試', '這是一分鐘提醒測試，不是咖啡因攝取建議。'),
-    };
-    final precision = await _scheduleCaffeineReminder(
-      id: _notificationId(key),
-      title: text.title,
-      body: text.body,
-      languageCode: languageCode,
-      scheduledTime: time,
-      payload: 'notification_schedule_test:${time.toUtc().toIso8601String()}',
-    );
-    await _appendHistory(
-      type: 'scheduled_test',
-      status: _scheduleStatus(precision),
-      title: text.title,
-      body: text.body,
-      scheduledAt: time,
-      reminderKey: key,
-    );
-    return precision;
-  });
-
   Future<void> reconcileVisibleNotifications() => _runExclusive(() async {
     await initialize();
     if (!_supported) return;
@@ -247,14 +208,12 @@ class NotificationService {
     if (active.isEmpty) return;
     final history = await loadNotificationHistory();
     var changed = false;
-    // Android's plugin result has no payload. IDs include the account/time or
-    // unique diagnostic time, so an older visible test cannot confirm a new one.
+    // Android's plugin result has no payload. Reminder IDs include account/time.
     final updated =
         history.map((entry) {
           final json = entry.toJson();
           final id =
-              ['scheduled_test', 'caffeine_reminder'].contains(entry.type) &&
-                      entry.reminderKey != null
+              entry.type == 'caffeine_reminder' && entry.reminderKey != null
                   ? _notificationId(entry.reminderKey!)
                   : null;
           if (id != null &&
@@ -498,26 +457,28 @@ class NotificationService {
     await _cancelPreviousReminders();
     await _plugin.cancel(id: 1001);
     await _cancelScheduledTests();
+  });
+
+  Future<void> _retireScheduledTests() async {
+    await _cancelScheduledTests();
     try {
       final prefs = await SharedPreferences.getInstance();
       final history = await loadNotificationHistory();
-      await prefs.setString(
-        _historyKey,
-        jsonEncode(
-          history.map((entry) {
-            final json = entry.toJson();
-            if (entry.type == 'scheduled_test' &&
-                ['scheduled', 'scheduled_inexact'].contains(entry.status)) {
-              json['status'] = 'cancelled';
-            }
-            return json;
-          }).toList(),
-        ),
-      );
+      if (history.any((entry) => entry.type == 'scheduled_test')) {
+        await prefs.setString(
+          _historyKey,
+          jsonEncode(
+            history
+                .where((entry) => entry.type != 'scheduled_test')
+                .map((entry) => entry.toJson())
+                .toList(),
+          ),
+        );
+      }
     } catch (error) {
       debugPrint('Test alarm cancelled; history cache update failed: $error');
     }
-  });
+  }
 
   Future<void> _cancelScheduledTests() async {
     final pending = await _plugin.pendingNotificationRequests();
@@ -536,7 +497,11 @@ class NotificationService {
         history
             .where(
               (entry) =>
-                  entry.type == 'scheduled_test' && entry.reminderKey != null,
+                  entry.type == 'scheduled_test' &&
+                  entry.reminderKey?.startsWith(
+                        'notification_schedule_test|',
+                      ) ==
+                      true,
             )
             .map((entry) => _notificationId(entry.reminderKey!)),
       );
@@ -737,7 +702,6 @@ class NotificationService {
       return '${entry.type}|${entry.reminderKey ?? entry.scheduledAt!.toUtc().toIso8601String()}';
     }
     if (entry.type == 'calculation_complete') return entry.type;
-    if (entry.type == 'scheduled_test') return entry.type;
     return '${entry.type}|${entry.createdAt.toUtc().toIso8601String()}';
   }
 

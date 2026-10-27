@@ -22,7 +22,6 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
   int? _pendingReminderCount;
   bool _isLoading = true;
   bool _isSendingTest = false;
-  bool _isSchedulingTest = false;
   bool _isRequestingExact = false;
   int _loadGeneration = 0;
   NotificationReadiness _readiness = const NotificationReadiness();
@@ -93,7 +92,8 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
     }
     if (!mounted || generation != _loadGeneration) return;
     setState(() {
-      _records = records;
+      _records =
+          records.where((record) => record.type != 'scheduled_test').toList();
       _pendingReminderCount = pendingReminderCount;
       _readiness = readiness;
       _isLoading = false;
@@ -179,55 +179,6 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
     await _loadRecords();
   }
 
-  Future<void> _scheduleTest() async {
-    setState(() => _isSchedulingTest = true);
-    String message;
-    try {
-      final precision = await _notifications.scheduleOneMinuteTest(
-        languageCode: Localizations.localeOf(context).languageCode,
-      );
-      if (!mounted) return;
-      message = switch (precision) {
-        ReminderSchedulePrecision.exact => _text(
-          zh: '已設定一分鐘後的測試提醒。請回到手機桌面或鎖屏後等待，並確認通知欄。',
-          en:
-              'Test scheduled for one minute from now. Go to the home screen or lock the phone, then check the notification tray.',
-          id:
-              'Tes dijadwalkan satu menit lagi. Kembali ke layar utama atau kunci ponsel, lalu periksa bilah notifikasi.',
-        ),
-        ReminderSchedulePrecision.inexact => _text(
-          zh: '已設定測試，但目前不是準時排程，可能延遲。請先開啟準時提醒權限。',
-          en:
-              'Test scheduled with possible delay. Enable exact reminder permission first.',
-          id:
-              'Tes dijadwalkan tetapi bisa terlambat. Aktifkan izin pengingat tepat waktu terlebih dahulu.',
-        ),
-        null => _text(
-          zh: '定時測試排程失敗，請回報此畫面。',
-          en: 'Scheduled test failed. Please report this screen.',
-          id: 'Tes terjadwal gagal. Laporkan layar ini.',
-        ),
-      };
-    } on NotificationPermissionException {
-      if (!mounted) return;
-      message = _text(
-        zh: '請先到手機設定開啟 WakeMate 通知。',
-        en: 'Enable WakeMate notifications in phone settings first.',
-        id: 'Aktifkan notifikasi WakeMate di setelan ponsel terlebih dahulu.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-      message = _notificationFailure(error);
-    } finally {
-      if (mounted) setState(() => _isSchedulingTest = false);
-    }
-    await _loadRecords();
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Future<void> _requestExact() async {
     setState(() => _isRequestingExact = true);
     String message;
@@ -239,11 +190,10 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
       message =
           allowed
               ? _text(
-                zh: '已允許準時排程，尚未到期的提醒已重新嘗試排程。請再執行一分鐘測試。',
-                en:
-                    'Exact scheduling allowed. Future reminders were retried. Run the one-minute test again.',
+                zh: '已允許準時排程，尚未到期的提醒已重新嘗試排程。',
+                en: 'Exact scheduling allowed. Future reminders were retried.',
                 id:
-                    'Penjadwalan tepat waktu diizinkan. Pengingat mendatang dijadwalkan ulang. Jalankan tes satu menit lagi.',
+                    'Penjadwalan tepat waktu diizinkan. Pengingat mendatang dijadwalkan ulang.',
               )
               : _text(
                 zh: '尚未允許準時排程，提醒可能延遲。',
@@ -314,19 +264,6 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
             ),
           ),
         ),
-      OutlinedButton.icon(
-        style: _diagnosticButtonStyle(),
-        key: const ValueKey('schedule-one-minute-test'),
-        onPressed: _isSchedulingTest ? null : _scheduleTest,
-        icon: const Icon(Icons.timer_outlined),
-        label: Text(
-          _text(
-            zh: '一分鐘後提醒測試',
-            en: 'Test reminder in one minute',
-            id: 'Tes pengingat satu menit lagi',
-          ),
-        ),
-      ),
     ],
   );
 
@@ -382,12 +319,6 @@ class _NotificationCenterPageState extends State<NotificationCenterPage>
     switch (type) {
       case 'test':
         return _text(zh: '測試通知', en: 'Test Notification', id: 'Tes Notifikasi');
-      case 'scheduled_test':
-        return _text(
-          zh: '定時通知測試',
-          en: 'Scheduled notification test',
-          id: 'Tes notifikasi terjadwal',
-        );
       case 'calculation_complete':
         return _text(
           zh: '計算完成',

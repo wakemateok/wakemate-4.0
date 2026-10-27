@@ -19,6 +19,9 @@ try {
         $mode = if ($flavor -eq 'legacy') { 'brief' } else { 'pvtb' }
         & $Flutter build apk --release --flavor $flavor "--dart-define=WAKEMATE_ALERTNESS_MODE=$mode"
         if ($LASTEXITCODE -ne 0) { throw "APK build failed: $flavor" }
+        if ($flavor -eq 'pvtb') {
+            & (Join-Path $PSScriptRoot 'verify_release_apk.ps1') -ApkPath (Join-Path $repoRoot "build\app\outputs\flutter-apk\app-$flavor-release.apk")
+        }
     }
 } finally {
     Pop-Location

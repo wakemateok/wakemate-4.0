@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:my_app/api/taipei_time.dart';
 import 'package:my_app/services/notification_service.dart';
 
 class NotificationCenterPage extends StatefulWidget {
-  const NotificationCenterPage({super.key});
+  const NotificationCenterPage({super.key, this.notifications});
+  final NotificationService? notifications;
 
   @override
   State<NotificationCenterPage> createState() => _NotificationCenterPageState();
@@ -16,10 +18,12 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   final Color _bgLight = const Color(0xFFF7F9FC);
 
   List<WakeMateNotificationLogEntry> _records = [];
-  int _pendingReminderCount = 0;
+  int? _pendingReminderCount;
   bool _isLoading = true;
   bool _isSendingTest = false;
   String? _loadError;
+  NotificationService get _notifications =>
+      widget.notifications ?? NotificationService.instance;
 
   @override
   void initState() {
@@ -39,31 +43,61 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   Future<void> _loadRecords() async {
-    try {
-      final records =
-          await NotificationService.instance.loadNotificationHistory();
-      final pendingReminderCount =
-          await NotificationService.instance.pendingCaffeineReminderCount();
-      if (!mounted) return;
+    if (mounted) {
       setState(() {
-        _records = records;
-        _pendingReminderCount = pendingReminderCount;
-        _isLoading = false;
-        _loadError = null;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _loadError = _text(
-          zh: '無法讀取手機通知狀態，請重新整理或確認通知權限。',
-          en:
-              'Unable to read notification status. Refresh or check notification permissions.',
-          id:
-              'Status notifikasi tidak dapat dibaca. Muat ulang atau periksa izin notifikasi.',
-        );
+        _isLoading = true;
+        _pendingReminderCount = null;
       });
     }
+    List<WakeMateNotificationLogEntry> records = [];
+    int? pendingReminderCount;
+    Object? failure;
+    try {
+      records = await _notifications.loadNotificationHistory();
+    } catch (error) {
+      failure = error;
+    }
+    try {
+      pendingReminderCount =
+          await _notifications.pendingCaffeineReminderCount();
+    } catch (error) {
+      failure ??= error;
+    }
+    if (!mounted) return;
+    setState(() {
+      _records = records;
+      _pendingReminderCount = pendingReminderCount;
+      _isLoading = false;
+      _loadError = failure == null ? null : _notificationFailure(failure);
+    });
+  }
+
+  String _notificationFailure(Object error) {
+    var code =
+        error is PlatformException
+            ? error.code
+            : error is MissingPluginException
+            ? 'notification_plugin_missing'
+            : 'notification_state_unavailable';
+    if (!RegExp(r'^[a-zA-Z0-9_\-]{1,64}$').hasMatch(code)) {
+      code = 'notification_error';
+    }
+    if (code == 'invalid_icon') {
+      return _text(
+        zh: '通知元件初始化失敗（invalid_icon）。請更新 App 後重新開啟並重試。',
+        en:
+            'Notification initialization failed (invalid_icon). Update the app, reopen it and retry.',
+        id:
+            'Inisialisasi notifikasi gagal (invalid_icon). Perbarui aplikasi, buka kembali, lalu coba lagi.',
+      );
+    }
+    return _text(
+      zh: '通知功能尚未確認，請重新整理；若仍失敗，請回報此畫面。錯誤代碼：$code',
+      en:
+          'Notification status is unconfirmed. Refresh and report this screen if it still fails. Error code: $code',
+      id:
+          'Status notifikasi belum dikonfirmasi. Muat ulang dan laporkan layar ini jika masih gagal. Kode kesalahan: $code',
+    );
   }
 
   Future<void> _sendTestNotification() async {
@@ -72,7 +106,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     final languageCode = Localizations.localeOf(context).languageCode;
     var message = '';
     try {
-      final sent = await NotificationService.instance.showTestNotification(
+      final sent = await _notifications.showTestNotification(
         languageCode: languageCode,
       );
       if (!mounted) return;
@@ -98,14 +132,9 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         id:
             'Notifikasi dinonaktifkan. Izinkan melalui Setelan > Aplikasi > WakeMate > Notifikasi, lalu coba lagi.',
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      message = _text(
-        zh: '測試通知未送出，請確認手機通知設定後重試。',
-        en:
-            'The test notification failed. Check phone notification settings and try again.',
-        id: 'Notifikasi tes gagal. Periksa setelan notifikasi lalu coba lagi.',
-      );
+      message = _notificationFailure(error);
     } finally {
       if (mounted) setState(() => _isSendingTest = false);
     }
@@ -117,7 +146,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   }
 
   Future<void> _clearRecords() async {
-    await NotificationService.instance.clearNotificationHistory();
+    await _notifications.clearNotificationHistory();
     await _loadRecords();
   }
 
@@ -356,9 +385,9 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                     Expanded(
                       child: Text(
                         _text(
-                          zh: '手機目前實際排程中的咖啡因提醒',
-                          en: 'Pending caffeine reminders on this phone',
-                          id: 'Pengingat kafein tertunda di ponsel ini',
+                          zh: 'App 登記的待發送咖啡因提醒',
+                          en: 'Registered pending caffeine reminders',
+                          id: 'Pengingat kafein tertunda yang terdaftar',
                         ),
                         style: TextStyle(
                           color: _primaryColor,
@@ -367,7 +396,16 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                       ),
                     ),
                     Text(
-                      '$_pendingReminderCount',
+                      _pendingReminderCount?.toString() ?? '?',
+                      key: const ValueKey('pending-reminder-count'),
+                      semanticsLabel:
+                          _pendingReminderCount == null
+                              ? _text(
+                                zh: '提醒數量未知',
+                                en: 'Reminder count unknown',
+                                id: 'Jumlah pengingat tidak diketahui',
+                              )
+                              : null,
                       style: TextStyle(
                         color: _accentColor,
                         fontSize: 22,
@@ -385,7 +423,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                     child: CircularProgressIndicator(),
                   ),
                 )
-              else if (_records.isEmpty)
+              else if (_records.isEmpty && _loadError == null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 44),
                   child: Column(

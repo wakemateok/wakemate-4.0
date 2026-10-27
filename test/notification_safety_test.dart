@@ -24,6 +24,7 @@ void main() {
   late List<MethodCall> calls;
   var allowed = true;
   var failInitialization = false;
+  var rejectInitialization = false;
   var failExactOnce = false;
 
   Map<String, dynamic> recommendation(DateTime time, [int amount = 25]) => {
@@ -46,12 +47,17 @@ void main() {
     calls = [];
     allowed = true;
     failInitialization = false;
+    rejectInitialization = false;
     failExactOnce = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           calls.add(call);
           switch (call.method) {
             case 'initialize':
+              if (rejectInitialization) {
+                rejectInitialization = false;
+                return false;
+              }
               if (failInitialization) {
                 failInitialization = false;
                 throw PlatformException(code: 'init_failed');
@@ -373,6 +379,25 @@ void main() {
     expect(calls.where((call) => call.method == 'zonedSchedule').length, 2);
     expect(pending.length, 1);
   });
+
+  test(
+    'a rejected initialization stays retryable and never reports success',
+    () async {
+      rejectInitialization = true;
+      await expectLater(
+        service.initialize(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'notification_initialization_failed',
+          ),
+        ),
+      );
+      await service.initialize();
+      expect(calls.where((call) => call.method == 'initialize'), hasLength(2));
+    },
+  );
 
   test(
     'cancelling old reminders does not need notification permission',

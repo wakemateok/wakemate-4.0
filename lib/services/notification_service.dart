@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -59,7 +60,10 @@ class NotificationService {
     const settings = InitializationSettings(
       android: AndroidInitializationSettings(_notificationIcon),
     );
-    await _plugin.initialize(settings: settings);
+    final initialized = await _plugin.initialize(settings: settings);
+    if (initialized != true) {
+      throw PlatformException(code: 'notification_initialization_failed');
+    }
     _supported = true;
     _initialized = true;
   }

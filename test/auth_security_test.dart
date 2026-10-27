@@ -203,7 +203,7 @@ void main() {
     await auth.login('test@example.com', '12345678');
     expect(auth.passwordChangeRequired, isTrue);
     await expectLater(
-      auth.changePassword('12345678', 'short'),
+      auth.changePassword('12345678', '   '),
       throwsA(isA<AuthException>()),
     );
   });
@@ -220,6 +220,22 @@ void main() {
     expect(auth.accessToken, 'wma_2');
     expect(auth.generation, 2);
   });
+
+  test(
+    'a short new password reaches the authenticated password endpoint unchanged',
+    () async {
+      final auth = authWith((request) {
+        if (request.url.path == '/login/') return jsonResponse(pair('1'));
+        expect(request.url.path, '/auth/change_password');
+        expect(request.headers['Authorization'], 'Bearer wma_1');
+        expect(jsonDecode(request.body)['new_password'], 'a');
+        return jsonResponse(pair('2'));
+      });
+      await auth.login('test@example.com', 'Old-password-2026!');
+      await auth.changePassword('Old-password-2026!', 'a');
+      expect(auth.accessToken, 'wma_2');
+    },
+  );
 
   test(
     'authenticated requests reject foreign origins before sending tokens',

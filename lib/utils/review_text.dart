@@ -43,6 +43,9 @@ String reviewText(String key, String language) {
       'Jam tidur dikelompokkan berdasarkan tanggal bangun',
     ],
     'drinkOptions': ['對應飲品', 'Drink options', 'Pilihan minuman'],
+    'generateRecommendation': ['產生推薦', 'Generate', 'Buat rekomendasi'],
+    'viewRecommendations': ['推薦紀錄', 'History', 'Riwayat rekomendasi'],
+    'viewDrinks': ['查看飲品', 'View drinks', 'Lihat minuman'],
     'doseReference': [
       '標示含量與實際含量可能有差異。以下僅換算飲品份量，不是額外攝取建議；不必喝完整杯。',
       'Actual caffeine may differ from labels. These are portion conversions, not advice to consume extra caffeine. A full cup is not required.',

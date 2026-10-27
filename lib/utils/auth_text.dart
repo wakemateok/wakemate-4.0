@@ -1,14 +1,19 @@
 String authText(String key, String language) {
   final texts = <String, List<String>>{
+    'passwordHint': [
+      '密碼不可空白，建議使用較長且不重複的密碼。',
+      'Password cannot be blank. A longer, unique password is recommended.',
+      'Kata sandi tidak boleh kosong. Sebaiknya gunakan kata sandi panjang dan unik.',
+    ],
     'passwordPolicy': [
-      '密碼至少 12 個字元，UTF-8 長度不可超過 72 bytes。',
-      'Use at least 12 characters and no more than 72 UTF-8 bytes.',
-      'Gunakan minimal 12 karakter dan maksimal 72 byte UTF-8.',
+      '密碼不可空白，不限制最少字數或字元組合；建議使用較長且不重複的密碼。長度上限為 72 UTF-8 bytes。',
+      'Password cannot be blank. No minimum length or character mix is required. A longer, unique password is recommended. Maximum: 72 UTF-8 bytes.',
+      'Kata sandi tidak boleh kosong. Tidak ada batas minimum atau kombinasi karakter wajib. Sebaiknya gunakan kata sandi panjang dan unik. Maksimal 72 byte UTF-8.',
     ],
     'passwordChangeRequired': [
-      '為保護帳號，請先更新原本較短的密碼。',
-      'Update your short password before continuing.',
-      'Perbarui kata sandi pendek Anda sebelum melanjutkan.',
+      '請更新密碼後再繼續，或登出後重新登入以確認最新帳號狀態。',
+      'Update your password, or sign out and sign in again to check your current account status.',
+      'Perbarui kata sandi, atau keluar dan masuk kembali untuk memeriksa status akun terbaru.',
     ],
     'currentPassword': ['目前密碼', 'Current password', 'Kata sandi saat ini'],
     'newPassword': ['新密碼', 'New password', 'Kata sandi baru'],
@@ -70,7 +75,8 @@ String authText(String key, String language) {
     ],
   };
   final normalized =
-      key == 'password_requires_12_characters_max_72_bytes'
+      key == 'password_requires_12_characters_max_72_bytes' ||
+              key == 'password_must_not_be_blank_max_72_bytes'
           ? 'passwordPolicy'
           : key;
   final text = texts[normalized] ?? texts['server_unavailable']!;

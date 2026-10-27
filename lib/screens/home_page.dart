@@ -693,34 +693,108 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${DateFormat('MM/dd').format(_selectedDate)} ${text('recommendations')}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+          if (_pvtb) ...[
+            Text(
+              '${DateFormat('MM/dd').format(_selectedDate)} ${text('recommendations')}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder:
+                  (context, constraints) => Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                        ),
+                        child: FilledButton(
+                          key: const ValueKey('home-generate-recommendation'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _primaryColor,
+                            minimumSize: const Size(0, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed:
+                              !_loading &&
+                                      snapshot?.hasSleep == true &&
+                                      snapshot?.hasWake == true
+                                  ? () => _refreshData(recalculate: true)
+                                  : null,
+                          child: Text(
+                            text('generateRecommendation'),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                        ),
+                        child: OutlinedButton(
+                          key: const ValueKey('home-recommendation-history'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            foregroundColor: _primaryColor,
+                            side: BorderSide(color: _primaryColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed:
+                              _loading
+                                  ? null
+                                  : () => _openPage(
+                                    CaffeineHistoryPage(
+                                      userId: widget.userId,
+                                      selectedDate: _selectedDate,
+                                      confirmedEntries:
+                                          _error == null
+                                              ? _snapshot?.recommendations
+                                              : const [],
+                                    ),
+                                  ),
+                          child: Text(
+                            text('viewRecommendations'),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${DateFormat('MM/dd').format(_selectedDate)} ${text('recommendations')}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                tooltip: l10n.recommendationHistory,
-                icon: const Icon(Icons.history),
-                onPressed:
-                    () => _openPage(
-                      CaffeineHistoryPage(
-                        userId: widget.userId,
-                        selectedDate: _selectedDate,
-                        confirmedEntries:
-                            _error == null && !_loading
-                                ? _snapshot?.recommendations
-                                : const [],
+                IconButton(
+                  tooltip: l10n.recommendationHistory,
+                  icon: const Icon(Icons.history),
+                  onPressed:
+                      () => _openPage(
+                        CaffeineHistoryPage(
+                          userId: widget.userId,
+                          selectedDate: _selectedDate,
+                          confirmedEntries:
+                              _error == null && !_loading
+                                  ? _snapshot?.recommendations
+                                  : const [],
+                        ),
                       ),
-                    ),
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           if (_loading)
             LinearProgressIndicator(semanticsLabel: text('updating')),
@@ -760,32 +834,82 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               rows.isEmpty)
             Text(text('noDose')),
           for (final row in rows) ...[
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.schedule),
-              title: Text(
-                '${DateFormat('HH:mm').format(recommendationTiming(row)!)} · ${row['recommended_caffeine_amount']} mg',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(l10n.recommendedAmount),
-              trailing: IconButton(
-                tooltip: text('drinkOptions'),
-                icon: const Icon(Icons.local_cafe_outlined),
-                onPressed:
-                    () => _openPage(
-                      DrinkMatchPage(
-                        userId: widget.userId,
-                        targetMg:
-                            (row['recommended_caffeine_amount'] as num)
-                                .toDouble(),
-                        recommendedAt: recommendationTiming(row)!,
+            if (_pvtb)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '${DateFormat('HH:mm').format(recommendationTiming(row)!)} · ${row['recommended_caffeine_amount']} mg',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(l10n.recommendedAmount),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: OutlinedButton(
+                        key: ValueKey(
+                          'home-view-drinks-${recommendationTiming(row)!.toIso8601String()}',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          foregroundColor: _primaryColor,
+                          side: BorderSide(color: _primaryColor),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed:
+                            () => _openPage(
+                              DrinkMatchPage(
+                                userId: widget.userId,
+                                targetMg:
+                                    (row['recommended_caffeine_amount'] as num)
+                                        .toDouble(),
+                                recommendedAt: recommendationTiming(row)!,
+                              ),
+                            ),
+                        child: Text(
+                          text('viewDrinks'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule),
+                title: Text(
+                  '${DateFormat('HH:mm').format(recommendationTiming(row)!)} · ${row['recommended_caffeine_amount']} mg',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(l10n.recommendedAmount),
+                trailing: IconButton(
+                  tooltip: text('drinkOptions'),
+                  icon: const Icon(Icons.local_cafe_outlined),
+                  onPressed:
+                      () => _openPage(
+                        DrinkMatchPage(
+                          userId: widget.userId,
+                          targetMg:
+                              (row['recommended_caffeine_amount'] as num)
+                                  .toDouble(),
+                          recommendedAt: recommendationTiming(row)!,
+                        ),
+                      ),
+                ),
               ),
-            ),
             const Divider(height: 1),
           ],
         ],

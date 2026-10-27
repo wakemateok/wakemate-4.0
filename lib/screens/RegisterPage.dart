@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:my_app/utils/auth_text.dart';
+import 'package:my_app/utils/password_policy.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 //import 'LoginPage.dart';
 
@@ -26,6 +27,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // 一個布林值，用來追蹤非同步操作是否正在進行
   bool isLoading = false;
+  bool _obscurePassword = true;
 
   // 定義顏色和樣式
   final Color _primaryColor = const Color(0xFF1F3D5B); // 深藍色
@@ -41,7 +43,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
     final password = passwordController.text;
-    if (password.runes.length < 12 || utf8.encode(password).length > 72) {
+    if (!acceptsNewPassword(password)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(authText('passwordPolicy', l10n.localeName))),
       );
@@ -134,6 +136,14 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
@@ -148,106 +158,125 @@ class _RegisterPageState extends State<RegisterPage> {
         elevation: 0,
         iconTheme: IconThemeData(color: _primaryColor),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          // 使用 SingleChildScrollView 避免鍵盤彈出時溢位
-          padding: const EdgeInsets.all(24.0),
-          child: Card(
-            color: _cardColor,
-            elevation: 12.0, // 增加陰影效果
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20.0), // 設定圓角
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min, // 讓 Column 佔用最小空間
-                children: [
-                  Text(
-                    l10n.registerTitle,
-                    style: TextStyle(
-                      fontSize: 28.0,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            // 使用 SingleChildScrollView 避免鍵盤彈出時溢位
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              color: _cardColor,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // 讓 Column 佔用最小空間
+                  children: [
+                    Text(
+                      l10n.registerTitle,
+                      style: TextStyle(
+                        fontSize: 28.0,
+                        fontWeight: FontWeight.bold,
+                        color: _primaryColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.nameLabel,
-                      labelStyle: TextStyle(color: _textColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _accentColor, width: 2),
-                      ),
-                      prefixIcon: Icon(Icons.person, color: _primaryColor),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: emailController,
-                    decoration: InputDecoration(
-                      labelText: "Email",
-                      labelStyle: TextStyle(color: _textColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _accentColor, width: 2),
-                      ),
-                      prefixIcon: Icon(Icons.email, color: _primaryColor),
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: passwordController,
-                    decoration: InputDecoration(
-                      labelText: l10n.passwordLabel,
-                      labelStyle: TextStyle(color: _textColor),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12.0),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _accentColor, width: 2),
-                      ),
-                      prefixIcon: Icon(Icons.lock, color: _primaryColor),
-                    ),
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: isLoading ? null : _registerUser,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
+                    const SizedBox(height: 32),
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: l10n.nameLabel,
+                        labelStyle: TextStyle(color: _textColor),
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.0),
                         ),
-                        elevation: 5,
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: _accentColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.person, color: _primaryColor),
                       ),
-                      child:
-                          isLoading
-                              ? const CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              )
-                              : Text(
-                                l10n.registerButton,
-                                style: TextStyle(fontSize: 18),
-                              ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      decoration: InputDecoration(
+                        labelText: "Email",
+                        labelStyle: TextStyle(color: _textColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: _accentColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.email, color: _primaryColor),
+                      ),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      decoration: InputDecoration(
+                        labelText: l10n.passwordLabel,
+                        labelStyle: TextStyle(color: _textColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: _accentColor, width: 2),
+                        ),
+                        prefixIcon: Icon(Icons.lock, color: _primaryColor),
+                        helperText: authText('passwordHint', l10n.localeName),
+                        helperMaxLines: 4,
+                        suffixIcon: IconButton(
+                          tooltip: authText('showPassword', l10n.localeName),
+                          onPressed:
+                              () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                      obscureText: _obscurePassword,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      autofillHints: const [AutofillHints.newPassword],
+                    ),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: isLoading ? null : _registerUser,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                          elevation: 5,
+                        ),
+                        child:
+                            isLoading
+                                ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                )
+                                : Text(
+                                  l10n.registerButton,
+                                  style: TextStyle(fontSize: 18),
+                                ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

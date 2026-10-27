@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:my_app/utils/password_policy.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -184,22 +185,22 @@ class AuthService extends ChangeNotifier {
     return true;
   }
 
-  Future<void> changePassword(
-    String currentPassword,
-    String newPassword,
-  ) => _serialize(() async {
-    if (newPassword.runes.length < 12 || utf8.encode(newPassword).length > 72) {
-      throw const AuthException('password_requires_12_characters_max_72_bytes');
-    }
-    var response = await _passwordRequest(currentPassword, newPassword);
-    if (response.statusCode == 401 && await _doRefresh()) {
-      response = await _passwordRequest(currentPassword, newPassword);
-    }
-    if (response.statusCode != 200) throw AuthException(_errorCode(response));
-    await _acceptPair(jsonDecode(response.body));
-    generation++;
-    notifyListeners();
-  });
+  Future<void> changePassword(String currentPassword, String newPassword) =>
+      _serialize(() async {
+        if (!acceptsNewPassword(newPassword)) {
+          throw const AuthException(passwordPolicyError);
+        }
+        var response = await _passwordRequest(currentPassword, newPassword);
+        if (response.statusCode == 401 && await _doRefresh()) {
+          response = await _passwordRequest(currentPassword, newPassword);
+        }
+        if (response.statusCode != 200) {
+          throw AuthException(_errorCode(response));
+        }
+        await _acceptPair(jsonDecode(response.body));
+        generation++;
+        notifyListeners();
+      });
 
   Future<http.Response> _passwordRequest(String current, String next) => _client
       .post(

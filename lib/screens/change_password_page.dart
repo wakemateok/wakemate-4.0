@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'package:my_app/utils/password_policy.dart';
 import 'package:flutter/material.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 import 'package:my_app/services/auth_service.dart';
@@ -103,9 +103,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         if (value == null || value.isEmpty) {
                           return text(entry.$2);
                         }
-                        if (entry.$1 == _next &&
-                            (value.runes.length < 12 ||
-                                utf8.encode(value).length > 72)) {
+                        if (entry.$1 == _next && !acceptsNewPassword(value)) {
                           return text('passwordPolicy');
                         }
                         if (entry.$1 == _confirm && value != _next.text) {

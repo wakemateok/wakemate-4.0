@@ -8,6 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+const notificationPermissionSetupSeenKey =
+    'notification_permission_setup_seen_v1';
+
 class NotificationService {
   NotificationService._();
 
@@ -22,6 +25,7 @@ class NotificationService {
   static const _notificationIcon = 'ic_notification';
   static const _maxHistoryItems = 80;
   static const _recentPastReminderGrace = Duration(minutes: 10);
+  static const _settings = MethodChannel('wakemate/notification_settings');
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -29,6 +33,7 @@ class NotificationService {
   bool _initialized = false;
   bool _supported = false;
   bool _notificationPermissionRequested = false;
+  bool _setupHandledInSession = false;
   Future<void>? _initializing;
   Future<void> _operationTail = Future<void>.value();
 
@@ -71,6 +76,98 @@ class NotificationService {
     }
     _supported = true;
     _initialized = true;
+  }
+
+  bool get supportsPermissionSetup =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  Future<bool> shouldOfferPermissionSetup() async {
+    if (!supportsPermissionSetup || _setupHandledInSession) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(notificationPermissionSetupSeenKey) != true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> markPermissionSetupHandled() async {
+    _setupHandledInSession = true;
+    try {
+      final prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 2),
+      );
+      await prefs
+          .setBool(notificationPermissionSetupSeenKey, true)
+          .timeout(const Duration(seconds: 2));
+    } catch (error) {
+      debugPrint(
+        'Optional notification setup preference could not be saved: $error',
+      );
+    }
+  }
+
+  Future<NotificationSetupState> preparePermissionSetup({
+    required String languageCode,
+  }) async {
+    await initialize();
+    if (!_supported) {
+      throw PlatformException(code: 'notification_setup_unsupported');
+    }
+    final sdk = await _settings.invokeMethod<int>('getAndroidSdk');
+    if (sdk == null) {
+      throw PlatformException(code: 'notification_settings_unavailable');
+    }
+    final android =
+        _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()!;
+    // Registering an existing channel never overrides the user's settings.
+    for (final language in ['zh', 'en', 'id']) {
+      final text = _channelText(language);
+      await android.createNotificationChannel(
+        AndroidNotificationChannel(
+          _channelId(language),
+          text.title,
+          description: text.body,
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+      );
+    }
+    return NotificationSetupState(
+      sdk: sdk,
+      readiness: await notificationReadiness(languageCode: languageCode),
+    );
+  }
+
+  Future<void> requestNotificationAccessForSetup({required int sdk}) =>
+      _runExclusive(() async {
+        await initialize();
+        if (!_supported) return;
+        final android =
+            _plugin
+                .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin
+                >()!;
+        if (await android.areNotificationsEnabled() == true) return;
+        if (sdk >= 33 && !_notificationPermissionRequested) {
+          _notificationPermissionRequested = true;
+          await android.requestNotificationsPermission();
+        } else {
+          await _settings.invokeMethod<void>('openNotificationSettings');
+        }
+      });
+
+  Future<void> openCaffeineChannelSettings({
+    required String languageCode,
+  }) async {
+    if (!supportsPermissionSetup) return;
+    await _settings.invokeMethod<void>('openChannelSettings', {
+      'channelId': _channelId(languageCode),
+    });
   }
 
   Future<void> showCalculationComplete({
@@ -849,6 +946,16 @@ class NotificationReadiness {
   final bool? notificationsEnabled;
   final bool? exactAlarmsAllowed;
   final bool? caffeineChannelEnabled;
+}
+
+class NotificationSetupState {
+  const NotificationSetupState({required this.sdk, required this.readiness});
+  final int sdk;
+  final NotificationReadiness readiness;
+  bool get notificationsReady => readiness.notificationsEnabled == true;
+  bool get exactReady => readiness.exactAlarmsAllowed == true;
+  bool get channelReady => sdk < 26 || readiness.caffeineChannelEnabled == true;
+  bool get allReady => notificationsReady && exactReady && channelReady;
 }
 
 class WakeMateNotificationLogEntry {

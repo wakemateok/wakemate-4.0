@@ -11,6 +11,7 @@ import 'screens/change_password_page.dart';
 import 'screens/LoginPage.dart';
 import 'screens/home_page.dart';
 import 'screens/questionnaire_prompt_page.dart';
+import 'screens/notification_permission_setup.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,7 +75,9 @@ class MyApp extends StatelessWidget {
                     child: child ?? const SizedBox.shrink(),
                   );
                 },
-                home: const QuestionnaireGate(child: AuthWrapper()),
+                home: const QuestionnaireGate(
+                  child: NotificationPermissionGate(child: AuthWrapper()),
+                ),
               );
             },
           ),

@@ -255,6 +255,7 @@ class AuthService extends ChangeNotifier {
     final preserved = <String, Object>{};
     for (final key in [
       'baseline_questionnaire_prompt_seen_v2',
+      notificationPermissionSetupSeenKey,
       'appLanguage',
     ]) {
       final value = prefs.get(key);

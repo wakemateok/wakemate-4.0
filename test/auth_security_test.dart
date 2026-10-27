@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:my_app/api/authenticated_http.dart';
 import 'package:my_app/services/auth_service.dart';
+import 'package:my_app/services/notification_service.dart';
 import 'package:my_app/utils/auth_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -189,12 +190,14 @@ void main() {
       await prefs.setString('caffeine_recommendations_user-one', 'private');
       await prefs.setString('appLanguage', 'id');
       await prefs.setBool('baseline_questionnaire_prompt_seen_v2', true);
+      await prefs.setBool(notificationPermissionSetupSeenKey, true);
       await auth.signOut();
       expect(auth.userId, isNull);
       expect(store.value, isNull);
       expect(prefs.getString('caffeine_recommendations_user-one'), isNull);
       expect(prefs.getString('appLanguage'), 'id');
       expect(prefs.getBool('baseline_questionnaire_prompt_seen_v2'), isTrue);
+      expect(prefs.getBool(notificationPermissionSetupSeenKey), isTrue);
     },
   );
 

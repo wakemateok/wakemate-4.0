@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.12+17
+version: 1.2.13+18
 
 environment:
   sdk: ^3.7.2
@@ -35,6 +35,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   table_calendar: ^3.0.9
   http: ^1.6.0
+  google_sign_in: ^7.2.0
 
 
 
@@ -75,6 +76,7 @@ flutter:
   assets:
     - assets/brand/wakemate_symbol.png
     - assets/brand/wakemate_logo.png
+    - assets/brand/google_g.png
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/utils/auth_text.dart';
 import 'package:my_app/config/app_brand.dart';
+import 'package:my_app/services/google_login_service.dart';
+import 'package:my_app/widgets/google_sign_in_button.dart';
 import 'RegisterPage.dart';
 import 'package:my_app/gen_l10n/app_localizations.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.auth, this.google});
+  final AuthService? auth;
+  final GoogleLoginService? google;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -18,6 +22,41 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
 
   bool isLoading = false;
+  late Future<GoogleLoginConfiguration> _googleConfiguration;
+  AuthService get _auth => widget.auth ?? AuthService.instance;
+  GoogleLoginService get _google =>
+      widget.google ?? GoogleLoginService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _googleConfiguration = _google.configuration();
+  }
+
+  Future<void> _loginGoogle(GoogleLoginConfiguration configuration) async {
+    if (isLoading) return;
+    setState(() => isLoading = true);
+    try {
+      await _google.signIn(configuration);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              authText(
+                error is AuthException
+                    ? error.code
+                    : 'google_temporarily_unavailable',
+                Localizations.localeOf(context).languageCode,
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   // 🎨 色彩主題 (與您上次的優化設計一致)
   final Color _primaryColor = const Color(0xFF1F3D5B); // 主深藍色
@@ -47,7 +86,7 @@ class _LoginPageState extends State<LoginPage> {
     }
     setState(() => isLoading = true);
     try {
-      await AuthService.instance.login(email, password);
+      await _auth.login(email, password);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -220,6 +259,41 @@ class _LoginPageState extends State<LoginPage> {
                         ),
 
                         const SizedBox(height: 20),
+                        FutureBuilder<GoogleLoginConfiguration>(
+                          future: _googleConfiguration,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return TextButton.icon(
+                                onPressed:
+                                    isLoading
+                                        ? null
+                                        : () => setState(() {
+                                          _googleConfiguration =
+                                              _google.configuration();
+                                        }),
+                                icon: const Icon(Icons.refresh),
+                                label: Text(
+                                  authText('googleRetry', l10n.localeName),
+                                ),
+                              );
+                            }
+                            final configuration = snapshot.data;
+                            if (configuration == null ||
+                                !configuration.enabled) {
+                              return const SizedBox.shrink();
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: GoogleSignInButton(
+                                busy: isLoading,
+                                onPressed:
+                                    isLoading
+                                        ? null
+                                        : () => _loginGoogle(configuration),
+                              ),
+                            );
+                          },
+                        ),
 
                         // --- 註冊連結 ---
                         TextButton(
@@ -262,8 +336,8 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                     textAlign: TextAlign.center,
                                   )
-                                  : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                  : Wrap(
+                                    alignment: WrapAlignment.center,
                                     children: [
                                       Text(l10n.noAccountPrompt),
                                       Text(

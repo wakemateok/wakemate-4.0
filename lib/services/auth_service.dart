@@ -54,6 +54,10 @@ class AuthService extends ChangeNotifier {
   String? get userId => (_session?['user'] as Map?)?['user_id'] as String?;
   String get userName => (_session?['user'] as Map?)?['name']?.toString() ?? '';
   String get email => (_session?['user'] as Map?)?['email']?.toString() ?? '';
+  bool get googleLinked =>
+      (_session?['user'] as Map?)?['google_linked'] == true;
+  bool get passwordLoginAvailable =>
+      (_session?['user'] as Map?)?['password_login_available'] != false;
   bool get passwordChangeRequired =>
       _session?['password_change_required'] == true;
 
@@ -156,6 +160,64 @@ class AuthService extends ChangeNotifier {
       return _doRefresh();
     }).whenComplete(() => _refreshing = null);
   }
+
+  Future<void> loginWithGoogleToken(String idToken) => _serialize(() async {
+    if (userId != null) throw const AuthException('invalid_session');
+    final response = await _client
+        .post(
+          baseUri.resolve('/auth/google/login'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'id_token': idToken}),
+        )
+        .timeout(_timeout);
+    if (response.statusCode != 200) throw AuthException(_errorCode(response));
+    final parsed = _parsePair(jsonDecode(response.body));
+    await _clearLocalData();
+    await _acceptPair(parsed, newIdentity: true);
+    _initialization = Future<void>.value();
+  });
+
+  Future<void> linkGoogleToken(String idToken, String currentPassword) =>
+      _serialize(() async {
+        if (userId == null) throw const AuthException('session_expired');
+        final owner = userId;
+        final epoch = generation;
+        Future<http.Response> request() => _client
+            .post(
+              baseUri.resolve('/auth/google/link'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $accessToken',
+              },
+              body: jsonEncode({
+                'id_token': idToken,
+                'current_password': currentPassword,
+              }),
+            )
+            .timeout(_timeout);
+        var response = await request();
+        if (response.statusCode == 401 &&
+            _errorCode(response) == 'session_expired' &&
+            await _doRefresh()) {
+          response = await request();
+        }
+        if (userId != owner || generation != epoch || _session == null) {
+          throw const AuthException('session_expired');
+        }
+        if (response.statusCode != 200) {
+          throw AuthException(_errorCode(response));
+        }
+        if (jsonDecode(response.body)['google_linked'] != true) {
+          throw const AuthException('invalid_session');
+        }
+        await _acceptPair({
+          ..._session!,
+          'user': {
+            ...Map<String, dynamic>.from(_session!['user'] as Map),
+            'google_linked': true,
+          },
+        });
+      });
 
   Future<T> _serialize<T>(Future<T> Function() operation) {
     final result = _credentialOperation.then((_) => operation());

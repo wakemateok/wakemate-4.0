@@ -12,6 +12,8 @@ import 'package:my_app/screens/feedback_page.dart';
 import 'package:my_app/utils/feedback_text.dart';
 import 'package:my_app/utils/review_text.dart';
 import 'package:my_app/config/app_release.dart';
+import 'package:my_app/screens/google_account_page.dart';
+import 'package:my_app/services/google_login_service.dart';
 
 class CustomDrawer extends StatelessWidget {
   static const String _configuredMode = String.fromEnvironment(
@@ -295,23 +297,42 @@ class CustomDrawer extends StatelessWidget {
                         );
                       },
                     ),
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.lock_reset,
-                      title: authText(
-                        'changePassword',
-                        Localizations.localeOf(context).languageCode,
+                    if (GoogleLoginService.instance.supported)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.account_circle_outlined,
+                        title: authText(
+                          'googleAccount',
+                          Localizations.localeOf(context).languageCode,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const GoogleAccountPage(),
+                            ),
+                          );
+                        },
                       ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ChangePasswordPage(),
-                          ),
-                        );
-                      },
-                    ),
+                    if (AuthService.instance.passwordLoginAvailable)
+                      _buildDrawerItem(
+                        context,
+                        icon: Icons.lock_reset,
+                        title: authText(
+                          'changePassword',
+                          Localizations.localeOf(context).languageCode,
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChangePasswordPage(),
+                            ),
+                          );
+                        },
+                      ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.language_outlined,

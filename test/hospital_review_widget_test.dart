@@ -182,7 +182,16 @@ void main() {
           ).subtract(const Duration(days: 1));
           await tester.drag(find.byType(ListView).first, const Offset(0, 900));
           await tester.pumpAndSettle();
-          final day = find.text('${selectedDay.day}').first;
+          // Day numbers can also appear in the previous/next month's cells.
+          final day =
+              find
+                  .byWidgetPredicate(
+                    (widget) =>
+                        widget is Semantics &&
+                        (widget.properties.label ?? '').split(',').first ==
+                            dayKey(selectedDay),
+                  )
+                  .first;
           await tester.ensureVisible(day);
           await tester.pumpAndSettle();
           expect(day.hitTestable(), findsOneWidget);

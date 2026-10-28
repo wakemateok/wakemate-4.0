@@ -1,8 +1,9 @@
 # Google login setup (Android PVT-B)
 
-Status: backend verification deployed; Android OAuth registration and a
-real-device Google login are still required. The teacher-tested Drive APK has
-not been replaced while those setup and verification steps are pending.
+Status: backend verification deployed; the user confirmed Android OAuth
+registration is complete. Version 1.2.13 was uploaded to the existing Drive APK
+file after automated verification. Actual Google-account sign-in on a physical
+phone remains pending; no Android device was connected to the test computer.
 
 Local verification on 2026-10-28:
 
@@ -19,7 +20,11 @@ Local verification on 2026-10-28:
 - Production checks: configuration enabled with the expected public ID;
   root 200; anonymous intake/link requests 401; forged Google token 401.
   These checks created no participant accounts.
-- No real Google-account authentication or Drive replacement has been done yet.
+- On 2026-10-28 the 337 Flutter and 86 backend tests were rerun successfully.
+- Drive replacement completed at 2026-10-28 14:11 Taipei time. Metadata readback
+  confirmed file ID `1oLDW53dg25zLRdr1ndRo2u5y59ovDNZV`, original folder and
+  60,127,163-byte size. The same production signing certificate was verified.
+- No real Google-account authentication has been performed by the agent.
 
 ## Ownership and prerequisites
 
@@ -74,19 +79,21 @@ client ID, a project ID, an API key or a client secret. No client secret is need
 - No unlink endpoint is offered until account recovery is designed, to prevent
   locking Google-only participants out of their account.
 
-## Required release gates
+## Release verification and remaining device acceptance
 
 1. Backend unit/security regression suite and Flutter unit/widget suite pass.
 2. Build and verify the signed universal PVT-B APK; legacy stays paused.
-3. Actual phone: new Google account, chooser cancellation, existing-account
+3. Remaining actual-phone checks: new Google account, chooser cancellation, existing-account
    collision, explicit linking, password login after linking, restart, sign-out
    and Google re-login. Verify the same WakeMate user ID and old records remain.
-4. Verify absence/outage of Google Play services shows a recoverable message.
-5. Verify the new Google user can save sleep/wake/intake, calculate and schedule
+4. Remaining device check: verify absence/outage of Google Play services shows a recoverable message.
+5. Remaining device check: verify the new Google user can save sleep/wake/intake, calculate and schedule
    reminders. Google sign-in must not reset previously granted permissions.
-6. Only then push/redeploy and update the existing Drive APK file, verifying
-   size, version, certificate and metadata. Do not claim a real Google login was
-   tested based only on mocked SDK calls or locally signed test JWTs.
+6. The user requested distribution of the automatically tested APK to the
+   original Drive file. Size, version, certificate and Drive metadata were
+   verified. Do not claim actual Google login or clinical/production acceptance
+   based only on mocked SDK calls or locally signed test JWTs. Complete steps
+   3-5 on a phone before describing Google sign-in as device-verified.
 
 ## References
 
